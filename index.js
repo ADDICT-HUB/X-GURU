@@ -191,14 +191,19 @@ async function connectWithPairing(malvin, useMobile) {
   });
   const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
-  let number = await question(chalk.cyan("» Enter your number (e.g., +254740007567): "));
-  number = number.replace(/[^0-9]/g, "");
-  rl.close();
+  // --- TEMPORARY FIX FOR LOCAL CONSOLE PAIRING ---
+  // We hardcode the number and skip the interactive prompt.
+  let number = "254735403829"; // <--- Set the number directly here (no + sign)
+  // --- END TEMPORARY FIX ---
 
+  // NOTE: Keep the rest of the function as is, starting with:
+  number = number.replace(/[^0-9]/g, ""); 
+  
   if (!number) {
     console.error(chalk.red("❌ No phone number provided"));
     process.exit(1);
   }
+
 
   try {
     let code = await malvin.requestPairingCode(number);
