@@ -1,4 +1,4 @@
-FROM node:lts-buster
+FROM node:lts-bookworm 
 USER root
 RUN apt-get update && \
     apt-get install -y ffmpeg webp git && \
