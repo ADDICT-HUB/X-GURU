@@ -14,7 +14,7 @@ function convertToBool(text, trueValue = 'true') {
 
 module.exports = {
   // ===== BOT CORE SETTINGS =====
-  SESSION_ID: settings.SESSION_ID || process.env.SESSION_ID || "Xguru~aUckCTJK#zs3wavophSKDiPP5Byb5Lm1v2-aeyEgS9rcSKX1ntHI", // Bot's session ID (keep secure)
+  SESSION_ID: settings.SESSION_ID || process.env.SESSION_ID || "Silent-luna~aUckCTJK#zs3wavophSKDiPP5Byb5Lm1v2-aeyEgS9rcSKX1ntHI", // Bot's session ID (keep secure)
   PREFIX: getConfig("PREFIX") || settings.PREFIX || ".", // Command prefix (e.g., ".", "/", "!")
   CHATBOT: getConfig("CHATBOT") || "on", // Chatbot toggle
   BOT_NAME: getConfig("BOT_NAME") || process.env.BOT_NAME || "X-GURU", // EDITED: X-GURU
