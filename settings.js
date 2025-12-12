@@ -1,4 +1,4 @@
-const fs = require('fs'); // CRITICAL FIX: Changed 'Const' to 'const'
+const fs = require('fs');
 const path = require('path');
 const { getConfig } = require('./lib/configdb');
 const settings = require('./settingss');
