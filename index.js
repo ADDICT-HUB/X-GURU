@@ -1,4 +1,4 @@
-// Anti-crash handler
+// Anti-crash handler by GuruTech 
 process.on("uncaughtException", (err) => {
   console.error("[❗] Uncaught Exception:", err.stack || err);
 });
@@ -7,7 +7,7 @@ process.on("unhandledRejection", (reason, p) => {
   console.error("[❗] Unhandled Promise Rejection:", reason);
 });
 
-// X-GURU (Updated Name Comment)
+// X-GURU 
 
 const axios = require("axios");
 const config = require("./settings");
