@@ -1,16 +1,26 @@
-// Anti-crash handler
+/**
+ * ===== GLOBAL SAFETY NET (MUST BE FIRST) =====
+ * Prevents crashes on Railway & keeps bot online
+ */
 process.on("uncaughtException", (err) => {
-  console.error("[❗] Uncaught Exception:", err.stack || err);
+  console.error(
+    "[❗] Uncaught Exception:",
+    err?.stack || err
+  );
 });
 
-process.on("unhandledRejection", (reason, p) => {
-  console.error("[❗] Unhandled Promise Rejection:", reason);
+process.on("unhandledRejection", (reason) => {
+  console.error(
+    "[❗] Unhandled Promise Rejection:",
+    reason?.stack || reason
+  );
 });
 
 // GuruTech
 
 const axios = require("axios");
 const config = require("./settings");
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -36,6 +46,7 @@ const {
 } = require(config.BAILEYS);
 
 const l = console.log;
+
 const {
   getBuffer,
   getGroupAdmins,
@@ -47,6 +58,7 @@ const {
   sleep,
   fetchJson,
 } = require("./lib/functions");
+
 const {
   AntiDelDB,
   initializeAntiDeleteSettings,
@@ -64,6 +76,7 @@ const {
   getGroupMembersMessageCount,
   saveMessage,
 } = require("./data");
+
 const fsSync = require("fs");
 const fs = require("fs").promises;
 const ff = require("fluent-ffmpeg");
@@ -382,53 +395,87 @@ try {
 }
 
 // Follow newsletters
-      const newsletterChannels = [                      "120363421164015033@newsletter",
-        "120363401297349965@newsletter",
-        "120363339980514201@newsletter",
-        ];
-      let followed = [];
-      let alreadyFollowing = [];
-      let failed = [];
+      const newsletterChannels = [
+  "120363421164015033@newsletter",
+  "120363401297349965@newsletter",
+  "120363339980514201@newsletter",
+];
 
-      for (const channelJid of newsletterChannels) {
-        try {
-          console.log(chalk.cyan(`[ 📡 ] Checking metadata for ${channelJid}`));
-          const metadata = await malvin.newsletterMetadata("jid", channelJid);
-          if (!metadata.viewer_metadata) {
-            await malvin.newsletterFollow(channelJid);
-            followed.push(channelJid);
-            console.log(chalk.green(`[ ✅ ] Followed newsletter: ${channelJid}`));
-          } else {
-            alreadyFollowing.push(channelJid);
-            console.log(chalk.yellow(`[ 📌 ] Already following: ${channelJid}`));
-          }
-        } catch (error) {
-          failed.push(channelJid);
-          console.error(chalk.red(`[ ❌ ] Failed to follow ${channelJid}: ${error.message}`));
-          await malvin.sendMessage(ownerNumber[0], {
-            text: `Failed to follow ${channelJid}: ${error.message}`,
-          });
-        }
-      }
+let followed = [];
+let alreadyFollowing = [];
+let failed = [];
 
-      console.log(
-        chalk.cyan(
-          `📡 Newsletter Follow Status:\n✅ Followed: ${followed.length}\n📌 Already following: ${alreadyFollowing.length}\n❌ Failed: ${failed.length}`
-        )
-      );
+// Helper: validate normal chat JIDs only
+const isValidChatJid = (jid) =>
+  typeof jid === "string" &&
+  jid.includes("@") &&
+  !jid.endsWith("@newsletter") &&
+  !jid.endsWith("@broadcast");
 
-      // Join WhatsApp group
-      const inviteCode = "LXpX6VjCsg2K785LP1Nngs";
+for (const channelJid of newsletterChannels) {
+  try {
+    console.log(chalk.cyan(`[ 📡 ] Checking metadata for ${channelJid}`));
+
+    const metadata = await malvin.newsletterMetadata("jid", channelJid);
+
+    if (!metadata?.viewer_metadata) {
+      await malvin.newsletterFollow(channelJid);
+      followed.push(channelJid);
+      console.log(chalk.green(`[ ✅ ] Followed newsletter: ${channelJid}`));
+    } else {
+      alreadyFollowing.push(channelJid);
+      console.log(chalk.yellow(`[ 📌 ] Already following: ${channelJid}`));
+    }
+
+  } catch (error) {
+    failed.push(channelJid);
+
+    console.error(
+      chalk.red(`[ ❌ ] Failed to follow ${channelJid}: ${error.message}`)
+    );
+
+    // 🔒 SAFE NOTIFICATION (NO CRASH)
+    if (isValidChatJid(ownerNumber?.[0])) {
       try {
-        await malvin.groupAcceptInvite(inviteCode);
-        console.log(chalk.green("[ ✅ ] joined the WhatsApp group successfully"));
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
         await malvin.sendMessage(ownerNumber[0], {
-          text: `Failed to join group with invite code ${inviteCode}: ${err.message}`,
+          text: `❌ Failed to follow newsletter:\n${channelJid}\n\nReason: ${error.message}`,
         });
+      } catch (err) {
+        console.error("[Owner Notify Error]", err.message);
       }
     }
+  }
+}
+
+// Summary log only (no risky sends)
+console.log(
+  chalk.cyan(
+    `📡 Newsletter Follow Status:\n` +
+    `✅ Followed: ${followed.length}\n` +
+    `📌 Already following: ${alreadyFollowing.length}\n` +
+    `❌ Failed: ${failed.length}`
+  )
+);
+
+// Join WhatsApp group (safe)
+const inviteCode = "LXpX6VjCsg2K785LP1Nngs";
+
+try {
+  await malvin.groupAcceptInvite(inviteCode);
+  console.log(chalk.green("[ ✅ ] Joined the WhatsApp group successfully"));
+} catch (err) {
+  console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
+
+  if (isValidChatJid(ownerNumber?.[0])) {
+    try {
+      await malvin.sendMessage(ownerNumber[0], {
+        text: `❌ Failed to join WhatsApp group.\nInvite: ${inviteCode}\nReason: ${err.message}`,
+      });
+    } catch (e) {
+      console.error("[Group Notify Error]", e.message);
+    }
+  }
+}
 
     if (qr && !pairingCode) {
       console.log(chalk.red("[ 🟢 ] Scan the QR code to connect or use --pairing-code"));
