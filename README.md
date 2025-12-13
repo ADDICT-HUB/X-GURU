@@ -14,7 +14,7 @@
 
 <p align="center">
 
-<a href="https://wa.me/2547XXXXXXX?text=PAIR">
+<a href="[https://wa.me/2547XXXXXXX?text=PAIR](https://guruxpair1.onrender.com/)">
   <img src="https://img.shields.io/badge/PAIR-BOT-success?style=for-the-badge&logo=whatsapp">
 </a>
 
