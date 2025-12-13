@@ -1,7 +1,7 @@
 # 🤖 X-GURU WHATSAPP BOT
 
 <p align="center">
-  <img src="https://via.placeholder.com/300x120?text=X-GURU" alt="X-GURU Logo">
+  <img src="https://i.ibb.co/GQchG0QD/vision-v.jpg" alt="X-GURU Logo">
 </p>
 
 <p align="center">
