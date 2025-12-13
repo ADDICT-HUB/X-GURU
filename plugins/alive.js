@@ -51,7 +51,7 @@ malvin({
 ║ 🤖 Bot Name  : X-GURU
 ╠═══════════════════════
 ║ 🌟 Keep this session safe
-║ 🔗 Newsletter info below
+║ 🔗 Forever respected 💀
 ╚═══════════════════════
         `.trim();
 
@@ -62,16 +62,19 @@ malvin({
                 mentionedJid: [m.sender],
                 forwardingScore: 999,
                 isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: '120363421164015033@newsletter', // your previous newsletter
-                    newsletterName: 'GuruTech',
-                    serverMessageId: 143
+                externalAdReply: {
+                    showAdAttribution: true,
+                    title: 'Subscribe to GuruTech Newsletter',
+                    body: 'Click to visit',
+                    mediaType: 2,
+                    thumbnailUrl: ALIVE_IMG,
+                    mediaUrl: 'https://shorturl.at/DYEi0' // Your newsletter link
                 }
             }
         }, { quoted: mek });
 
     } catch (err) {
-        console.error("Error in .alive:", err);
+        console.error("Error in .alive2:", err);
         return reply(`❌ *Alive Command Error:*\n${err.message}`);
     }
 });
