@@ -1,13 +1,13 @@
+const { malvin } = require("../malvin");
 const config = require("../settings");
-const { malvin } = require('../malvin');
-const moment = require('moment-timezone');
-const os = require('os');
-const { runtime } = require('../lib/functions');
+const moment = require("moment-timezone");
+const os = require("os");
+const { runtime } = require("../lib/functions");
 
 const botStartTime = Date.now();
-const ALIVE_IMG = config.ALIVE_IMAGE || 'https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg';
-const NEWSLETTER_JID = config.NEWSLETTER_JID || '120363299029326322@newsletter';
-const AUDIO_URL = config.AUDIO_URL || 'https://files.catbox.moe/pjlpd7.mp3';
+const ALIVE_IMG = config.ALIVE_IMAGE || 'https://files.catbox.moe/75baia.jpg';
+const NEWSLETTER_JID = config.NEWSLETTER_JID || '120363421164015033@newsletter';
+const AUDIO_URL = config.AUDIO_URL || 'https://files.catbox.moe/jlf4l2.mp3';
 
 // Tiny caps mapping for lowercase letters
 const tinyCapsMap = {
@@ -17,12 +17,7 @@ const tinyCapsMap = {
 };
 
 // Function to convert string to tiny caps
-const toTinyCaps = (str) => {
-  return str
-    .split('')
-    .map((char) => tinyCapsMap[char.toLowerCase()] || char)
-    .join('');
-};
+const toTinyCaps = (str) => str.split('').map(c => tinyCapsMap[c.toLowerCase()] || c).join('');
 
 malvin({
   pattern: 'alive',
@@ -38,65 +33,44 @@ malvin({
     const totalRam = (os.totalmem() / 1024 / 1024).toFixed(2);
 
     const caption = `
-*┏─〔${pushname}〕─⊷*
-*┇ ᴜᴘᴛɪᴍᴇ: ${uptime}*
-*┇ ʙᴏᴛ ɴᴀᴍᴇ: ${config.BOT_NAME}*
-*┇ ᴏᴡɴᴇʀ: ${config.OWNER_NAME}*
-*┗──────────────⊷*
-> ᴍᴀᴅᴇ ʙʏ ᴍᴀʀɪsᴇʟ
+╭───〔 𝗫-𝗚𝗨𝗥𝗨 𝗦𝗧𝗔𝗧𝗨𝗦 〕───
+│ 👤 User       : ${pushname}
+│ 🕓 Uptime     : ${uptime}
+│ 💻 Bot Name   : ${config.BOT_NAME || 'X-GURU'}
+│ 🧑‍💻 Owner    : ${config.OWNER_NAME || 'GuruTech'}
+│ 🖥 RAM Usage  : ${usedRam}MB / ${totalRam}MB
+╰────────────────────────────
 `.trim();
 
     const buttons = [
       {
         buttonId: "action",
-        buttonText: { displayText: "ᴍᴇɴᴜ ᴏᴘᴛɪᴏɴꜱ" },
+        buttonText: { displayText: "MENU OPTIONS" },
         type: 4,
         nativeFlowInfo: {
           name: "single_select",
           paramsJson: JSON.stringify({
-            title: "ᴄʟɪᴄᴋ ʜᴇʀᴇ",
+            title: "Click Here",
             sections: [
               {
-                title: "ᴍᴇʀᴄᴇᴅᴇs",
-                highlight_label: "",
+                title: "X-GURU MENU",
                 rows: [
-                  {
-                    title: "ᴍᴇɴᴜ",
-                    description: "ᴏᴘᴇɴ ᴀʟʟ ᴄᴏᴍᴍᴀɴᴅꜱ",
-                    id: `${config.PREFIX}menu`,
-                  },
-                  {
-                    title: "ᴏᴡɴᴇʀ",
-                    description: "ᴄᴏɴᴛᴀᴄᴛ ʙᴏᴛ ᴏᴡɴᴇʀ",
-                    id: `${config.PREFIX}owner`,
-                  },
-                  {
-                    title: "ᴘɪɴɢ",
-                    description: "ᴛᴇꜱᴛ ʙᴏᴛ ꜱᴘᴇᴇᴅ",
-                    id: `${config.PREFIX}ping`,
-                  },
-                  {
-                    title: "ꜱʏꜱᴛᴇᴍ",
-                    description: "ꜱʏꜱᴛᴇᴍ ɪɴꜰᴏʀᴍᴀᴛɪᴏɴ",
-                    id: `${config.PREFIX}system`,
-                  },
-                  {
-                    title: "ʀᴇᴘᴏ",
-                    description: "ɢɪᴛʜᴜʙ ʀᴇᴘᴏꜱɪᴛᴏʀʏ",
-                    id: `${config.PREFIX}repo`,
-                  },
-                ],
-              },
-            ],
-          }),
-        },
-      },
+                  { title: "MENU", description: "Open all commands", id: `${config.PREFIX}menu` },
+                  { title: "OWNER", description: "Contact bot owner", id: `${config.PREFIX}owner` },
+                  { title: "PING", description: "Check bot speed", id: `${config.PREFIX}ping` },
+                  { title: "SYSTEM", description: "System information", id: `${config.PREFIX}system` },
+                  { title: "REPO", description: "GitHub repository", id: `${config.PREFIX}repo` },
+                ]
+              }
+            ]
+          })
+        }
+      }
     ];
 
     await malvin.sendMessage(from, {
       buttons,
       headerType: 1,
-      viewOnce: true,
       image: { url: ALIVE_IMG },
       caption,
       contextInfo: {
@@ -105,7 +79,7 @@ malvin({
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
           newsletterJid: NEWSLETTER_JID,
-          newsletterName: toTinyCaps('𝖒𝖆𝖗𝖎𝖘𝖊𝖑'),
+          newsletterName: toTinyCaps(config.OWNER_NAME || 'GuruTech'),
           serverMessageId: 143,
         },
       },
@@ -126,7 +100,6 @@ malvin({
     const errorMessage = toTinyCaps(`
       An error occurred while processing the alive command.
       Error Details: ${error.message}
-      Please report this issue or try again later.
     `).trim();
     return reply(errorMessage);
   }
