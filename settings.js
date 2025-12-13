@@ -25,20 +25,20 @@ module.exports = {
   CHATBOT: getConfig("CHATBOT") || "on",
   BOT_NAME: getConfig("BOT_NAME") || process.env.BOT_NAME || "X-GURU",
   MODE: getConfig("MODE") || process.env.MODE || "private",
-  REPO: process.env.REPO || "https://github.com/betingrich4/Mercedes",
+  REPO: process.env.REPO || "https://github.com/ADDICT-HUB/X-GURU",
   PAIRING_CODE: process.env.PARING_CODE || 'true',
   BAILEYS: process.env.BAILEYS || "@whiskeysockets/baileys",
 
   // ===== OWNER & DEVELOPER SETTINGS =====
-  OWNER_NUMBER: settings.OWNER_NUMBER || process.env.OWNER_NUMBER || "254740007567",
+  OWNER_NUMBER: settings.OWNER_NUMBER || process.env.OWNER_NUMBER || "254735403829",
   OWNER_NAME: getConfig("OWNER_NAME") || process.env.OWNER_NAME || "GuruTech",
-  DEV: process.env.DEV || "254740007567",
-  DEVELOPER_NUMBER: '254740007567@s.whatsapp.net',
+  DEV: process.env.DEV || "254735403829",
+  DEVELOPER_NUMBER: '254735403829@s.whatsapp.net',
 
   // ===== MEDIA & AUTOMATION =====
-  MENU_AUDIO_URL: getConfig("MENU_AUDIO_URL") || process.env.MENU_AUDIO_URL || 'https://files.catbox.moe/vkvci3.mp3',
-  AUDIO_URL: getConfig("AUDIO_URL") || process.env.AUDIO_URL || 'https://files.catbox.moe/vkvci3.mp3',
-  AUDIO_URL2: getConfig("AUDIO_URL2") || process.env.AUDIO_URL2 || 'https://files.catbox.moe/vkvci3.mp3',
+  MENU_AUDIO_URL: getConfig("MENU_AUDIO_URL") || process.env.MENU_AUDIO_URL || 'https://files.catbox.moe/jlf4l2.mp3',
+  AUDIO_URL: getConfig("AUDIO_URL") || process.env.AUDIO_URL || 'https://files.catbox.moe/jlf4l2.mp3',
+  AUDIO_URL2: getConfig("AUDIO_URL2") || process.env.AUDIO_URL2 || 'https://files.catbox.moe/jlf4l2.mp3',
 
   // ===== AUTO-RESPONSE SETTINGS =====
   AUTO_REPLY: getConfig("AUTO_REPLY") || process.env.AUTO_REPLY || "false",
@@ -46,8 +46,8 @@ module.exports = {
   AUTO_STATUS_MSG: process.env.AUTO_STATUS_MSG || "*Just seen ur status 😆 🤖*",
   READ_MESSAGE: getConfig("READ_MESSAGE") || process.env.READ_MESSAGE || "false",
   REJECT_MSG: process.env.REJECT_MSG || "*📵 Calls are not allowed on this number unless you have permission. 🚫*",
-  ALIVE_IMG: getConfig("ALIVE_IMG") || process.env.ALIVE_IMG || "https://i.ibb.co/fYrXbwbf/malvin-xd.jpg",
-  LIVE_MSG: process.env.LIVE_MSG || "> ʙᴏᴛ ɪs sᴘᴀʀᴋɪɴɢ ᴀᴄᴛɪᴠᴇ ᴀɴᴅ ᴀʟɪᴠᴇ\n\n\n> ɢɪᴛʜᴜʙ :* github.com/betingrich4/Mercedes",
+  ALIVE_IMG: getConfig("ALIVE_IMG") || process.env.ALIVE_IMG || "https://files.catbox.moe/75baia.jpg",
+  LIVE_MSG: process.env.LIVE_MSG || "> ʙᴏᴛ ɪs sᴘᴀʀᴋɪɴɢ ᴀᴄᴛɪᴠᴇ ᴀɴᴅ ᴀʟɪᴠᴇ\n\n\n> ɢɪᴛʜᴜʙ :* github.com/ADDICT-HUB/X-GURU",
 
   // ===== SECURITY & ANTI-FEATURES =====
   ANTI_DELETE: getConfig("ANTI_DELETE") || process.env.ANTI_DELETE || "true",
@@ -66,7 +66,7 @@ module.exports = {
   ALWAYS_ONLINE: getConfig("ALWAYS_ONLINE") || process.env.ALWAYS_ONLINE || "false",
   AUTO_STATUS_REACT: getConfig("AUTO_STATUS_REACT") || process.env.AUTO_STATUS_REACT || "true",
   AUTO_STATUS_SEEN: getConfig("AUTO_STATUS_SEEN") || process.env.AUTO_STATUS_SEEN || "true",
-  AUTO_BIO: getConfig("AUTO_BIO") || process.env.AUTO_BIO || "false",
+  AUTO_BIO: getConfig("AUTO_BIO") || process.env.AUTO_BIO || "true",
   WELCOME: getConfig("WELCOME") || process.env.WELCOME || "false",
   GOODBYE: getConfig("GOODBYE") || process.env.GOODBYE || "false",
   ADMIN_ACTION: getConfig("ADMIN_ACTION") || process.env.ADMIN_ACTION || "false",
