@@ -7,7 +7,7 @@ process.on("unhandledRejection", (reason, p) => {
   console.error("[❗] Unhandled Promise Rejection:", reason);
 });
 
-// Marisel
+// GuruTech
 
 const axios = require("axios");
 const config = require("./settings");
@@ -125,35 +125,46 @@ if (!fsSync.existsSync(sessionDir)) {
 
 async function loadSession() {
   try {
-async function loadSession() {
-  try {
     if (!config.SESSION_ID) {
-      console.log("No SESSION_ID provided");
+      console.log(chalk.red("No SESSION_ID provided - Falling back to QR or pairing code"));
       return null;
     }
 
-    // ===== X-GURU BASE64 SESSION =====
     if (config.SESSION_ID.startsWith("X-GURU~")) {
-      console.log("[ ⏳ ] Decoding X-GURU base64 session...");
-
-      const base64Data = config.SESSION_ID.replace("X-GURU~", "").trim();
-
+      console.log(chalk.yellow("[ ⏳ ] Decoding base64 session..."));
+      const base64Data = config.SESSION_ID.replace("Silena-luna~", "");
       if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
         throw new Error("Invalid base64 format in SESSION_ID");
       }
-
-      const decoded = Buffer.from(base64Data, "base64");
-
-      fsSync.writeFileSync(credsPath, decoded);
-      console.log("[ ✅ ] X-GURU session restored");
-
-      return JSON.parse(decoded.toString());
+      const decodedData = Buffer.from(base64Data, "base64");
+      let sessionData;
+      try {
+        sessionData = JSON.parse(decodedData.toString("utf-8"));
+      } catch (error) {
+        throw new Error("Failed to parse decoded base64 session data: " + error.message);
+      }
+      fsSync.writeFileSync(credsPath, decodedData);
+      console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
+      return sessionData;
+    } else if (config.SESSION_ID.startsWith("Silent-luna~")) {
+      console.log(chalk.yellow("[ ⏳ ] Downloading MEGA.nz session..."));
+      const megaFileId = config.SESSION_ID.replace("Silent-luna~", "");
+      const filer = File.fromURL(`https://mega.nz/file/${megaFileId}`);
+      const data = await new Promise((resolve, reject) => {
+        filer.download((err, data) => {
+          if (err) reject(err);
+          else resolve(data);
+        });
+      });
+      fsSync.writeFileSync(credsPath, data);
+      console.log(chalk.green("[ ✅ ] MEGA session downloaded successfully"));
+      return JSON.parse(data.toString());
+    } else {
+      throw new Error("Invalid SESSION_ID format. Use 'X-GURU~' for base64 or 'X-GURU~' for MEGA.nz");
     }
-
-    throw new Error("Invalid SESSION_ID prefix");
-
-  } catch (err) {
-    console.error("❌ Session load error:", err.message);
+  } catch (error) {
+    console.error(chalk.red("❌ Error loading session:", error.message));
+    console.log(chalk.green("Will attempt QR code or pairing code login"));
     return null;
   }
 }
@@ -244,7 +255,7 @@ async function connectToWA() {
         setTimeout(connectToWA, 5000);
       }
     } else if (connection === "open") {
-      console.log(chalk.green("[ 🤖 ] SILENT-LUNA Connected ✅"));
+      console.log(chalk.green("[ 🤖 ] X-GURU Connected ✅"));
 
       // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
@@ -270,7 +281,7 @@ try {
   const prefix = getPrefix();
   const username = "Guru";
   const mrmalvin = `https://github.com/${username}`;
-  const repoUrl = "https://github.com/itsguruu/SILENT-LUNA";
+  const repoUrl = "https://github.com/ADDICT-HUB/X-GURU";
   const welcomeAudio = "https://files.catbox.moe/z47dgd.p3";
   
   // Get current date and time
