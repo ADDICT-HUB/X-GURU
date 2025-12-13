@@ -1,8 +1,8 @@
 /*
-🔧 Project      : MALVIN-XD
-👑 Creator      : Malvin King (Mr. Lord Malvin)
-📦 Repository   : https://github.com/XdKing2/MALVIN-XD
-📞 Support      : https://wa.me/263714757857
+🔧 Project      : X-GURU
+👑 Creator      : GuruTech
+📦 Repository   : https://github.com/ADDICT-HUB/X-GURU
+📞 Support      : https://wa.me/254735403829
 */
 
 const { malvin } = require('../malvin');
@@ -16,8 +16,8 @@ malvin({
   filename: __filename
 }, async (malvin, mek, m, { from, reply }) => {
   try {
-    const ownerName = config.OWNER_NAME || "Marisel";
-    const ownerNumber = config.OWNER_NUMBER || "254740007567";
+    const ownerName = config.OWNER_NAME || "GuruTech";
+    const ownerNumber = config.OWNER_NUMBER || "254735403829";
 
     // Build vCard contact
     const vcard = [
@@ -36,14 +36,14 @@ malvin({
       }
     });
 
-    // Send image + caption
+    // Send image + caption with original style
     await malvin.sendMessage(from, {
-      image: { url: 'https://url.bwmxmd.online/Adams.xm472dqv.jpeg' },
+      image: { url: 'https://files.catbox.moe/75baia.jpg' },
       caption: `
-╭── ❍ ᴍᴀʀɪsᴇʟ❍
+╭── ❍ X-GURU ❍
 │ ✦ 𝙽𝚊𝚖𝚎   : *${ownerName}*
 │ ✦ 𝙽𝚞𝚖𝚋𝚎𝚛 : *${ownerNumber}*
-│ ✦ 𝚅𝚎𝚛𝚜𝚒𝚘𝚗 : *${config.version || 'Unknown'}*
+│ ✦ 𝚅𝚎𝚛𝚜𝚒𝚘𝚗 : *${config.version || '2.0.0'}*
 ╰───────────────
 > Stay connected for 🔥 updates!`,
       contextInfo: {
@@ -52,7 +52,7 @@ malvin({
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
           newsletterJid: '120363299029326322@newsletter',
-          newsletterName: '𝖒𝖆𝖗𝖎𝖘𝖊𝖑',
+          newsletterName: ownerName,
           serverMessageId: 143
         }
       }
