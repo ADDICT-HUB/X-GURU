@@ -300,13 +300,13 @@ try {
   const jid = malvin.decodeJid(malvin.user.id);
   if (!jid) throw new Error("Invalid JID for bot");
 
-  const botname = "𝐒𝐈𝐋𝐄𝐍𝐓-𝐋𝐔𝐍𝐀";
+  const botname = "X-GURU";
   const ownername = "GURU";
   const prefix = getPrefix();
   const username = "Guru";
   const mrmalvin = `https://github.com/${username}`;
   const repoUrl = "https://github.com/ADDICT-HUB/X-GURU";
-  const welcomeAudio = "https://files.catbox.moe/z47dgd.p3";
+  const welcomeAudio = "https://files.catbox.moe/jlf4l2.mp3";
   
   // Get current date and time
   const currentDate = new Date();
@@ -341,7 +341,7 @@ try {
 
   try {
     await malvin.sendMessage(jid, {
-      image: { url: "https://url.bwmxmd.online/Adams.xm472dqv.jpeg" },
+      image: { url: "https://files.catbox.moe/75baia.jpg" },
       caption: upMessage,
     }, { quoted: null });
     console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
