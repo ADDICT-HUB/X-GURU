@@ -48,7 +48,7 @@ ${truncatedCode}
 
         // Send image with truncated source code
         await malvin.sendMessage(from, { 
-            image: { url: config.MENU_IMAGE_URL || 'https://url.bwmxmd.online/Adams.xm472dqv.jpeg' },
+            image: { url: config.MENU_IMAGE_URL || 'https://files.catbox.moe/75baia.jpg' },
             caption: formattedCode,
             contextInfo: {
                 mentionedJid: [m.sender],
