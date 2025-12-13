@@ -4,11 +4,11 @@ const { malvin } = require('../malvin');
 const fs = require('fs');
 
 let bioInterval;
-const defaultBio = config.AUTO_BIO_TEXT || "ᴠɪsɪᴏɴ ᴠ| ǫᴜᴏᴛᴇ: {quote} | Time: {time}";
+const defaultBio = config.AUTO_BIO_TEXT || "X-GURU | Quote: {quote} | Time: {time}";
 const quoteApiUrl = config.QUOTE_API_URL || 'https://apis.davidcyriltech.my.id/random/quotes';
-const updateInterval = config.AUTO_BIO_INTERVAL || 30 * 1000; // Default to 30 seconds
+const updateInterval = config.AUTO_BIO_INTERVAL || 30 * 1000; // Default 30 seconds
 
-// Fallback quotes if API fails
+// Fallback quotes
 const fallbackQuotes = [
     "Stay curious, keep learning!",
     "Dream big, work hard!",
@@ -17,7 +17,7 @@ const fallbackQuotes = [
     "Life is a journey, enjoy it!"
 ];
 
-// Function to get Kenya time and date
+// Get Kenya time
 function getKenyaTime() {
     const options = {
         timeZone: 'Africa/Nairobi',
@@ -31,9 +31,7 @@ function getKenyaTime() {
         year: 'numeric'
     };
     
-    const now = new Date();
-    const kenyaTime = now.toLocaleString('en-US', options);
-    return kenyaTime;
+    return new Date().toLocaleString('en-US', options);
 }
 
 malvin({
@@ -44,57 +42,49 @@ malvin({
     filename: __filename,
     usage: `${config.PREFIX}autobio [on/off] [text]`
 }, async (malvin, mek, m, { args, reply, isOwner }) => {
-    if (!isOwner) return reply("❌ ᴏɴʟʏ ᴛʜᴇ ʙᴏᴛ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ");
+    if (!isOwner) return reply("❌ Only the bot owner can use this command.");
 
     const [action, ...bioParts] = args;
     const customBio = bioParts.join(' ') || defaultBio;
 
     try {
         if (action === 'on') {
-            if (config.AUTO_BIO === "true") {
-                return reply("ℹ️ ᴀᴜᴛᴏ-ʙɪᴏ ɪs ᴀʟʀᴇᴀᴅʏ ᴇɴᴀʙʟᴇᴅ");
-            }
+            if (config.AUTO_BIO === "true") return reply("ℹ️ Auto-bio is already enabled.");
 
             config.AUTO_BIO = "true";
             config.AUTO_BIO_TEXT = customBio;
-            // Optionally persist config
-            // fs.writeFileSync('./settings.json', JSON.stringify(config, null, 2));
 
             startAutoBio(malvin, customBio);
-            return reply(`✅ ᴀᴜᴛᴏ-ʙɪᴏ ᴇɴᴀʙʟᴇᴅ\nᴄᴜʀʀᴇɴᴛ ᴛᴇxᴛ: "${customBio}"`);
+            return reply(`✅ Auto-bio enabled!\nCurrent text: "${customBio}"`);
 
         } else if (action === 'off') {
-            if (config.AUTO_BIO !== "true") {
-                return reply("ℹ️ ᴀᴜᴛᴏ-ʙɪᴏ ɪs ᴀʟʀᴇᴀᴅʏ ᴅɪsᴀʙʟᴇᴅ");
-            }
+            if (config.AUTO_BIO !== "true") return reply("ℹ️ Auto-bio is already disabled.");
 
             config.AUTO_BIO = "false";
             stopAutoBio();
-            // Optionally persist config
-            // fs.writeFileSync('./settings.json', JSON.stringify(config, null, 2));
-            return reply("✅ ᴀᴜᴛᴏ-ʙɪᴏ ᴅɪsᴀʙʟᴇᴅ");
+            return reply("✅ Auto-bio disabled.");
 
         } else {
             return reply(
-                `╭━━〔 🤖 *ᴀᴜᴛᴏ-ʙɪᴏ* 〕━━┈⊷\n` +
+                `╭━━〔 🤖 Auto-Bio Settings 〕━━┈⊷\n` +
                 `│\n` +
-                `│ 📜 *ᴜsᴀɢᴇ:*\n` +
-                `│ ➸ ${config.PREFIX}autobio on [text] - ᴇɴᴀʙʟᴇ ᴡɪᴛʜ ᴄᴜsᴛᴏᴍ ᴛᴇxᴛ\n` +
-                `│ ➸ ${config.PREFIX}autobio off - ᴅɪsᴀʙʟᴇ ᴀᴜᴛᴏ-ʙɪᴏ\n` +
+                `│ Usage:\n` +
+                `│ ➸ ${config.PREFIX}autobio on [text] - Enable auto-bio with custom text\n` +
+                `│ ➸ ${config.PREFIX}autobio off - Disable auto-bio\n` +
                 `│\n` +
-                `│ 🔖 *ᴘʟᴀᴄᴇʜᴏʟᴅᴇʀs:*\n` +
-                `│ ➸ {quote} - ʀᴀɴᴅᴏᴍ ᴏᴜᴏᴛᴇ\n` +
-                `│ ➸ {time} - ᴋᴇɴʏᴀ ᴛɪᴍᴇ & ᴅᴀᴛᴇ\n` +
+                `│ Placeholders:\n` +
+                `│ ➸ {quote} - Random quote\n` +
+                `│ ➸ {time} - Kenya time & date\n` +
                 `│\n` +
-                `│ 💡 *sᴛᴀᴛᴜs:* ${config.AUTO_BIO === "true" ? 'ON' : 'OFF'}\n` +
-                `│ 📝 *ᴛᴇxᴛ:* "${config.AUTO_BIO_TEXT || defaultBio}"\n` +
-                `│ 🕒 *ᴋᴇɴʏᴀ ᴛɪᴍᴇ:* ${getKenyaTime()}\n` +
+                `│ Status: ${config.AUTO_BIO === "true" ? 'ON' : 'OFF'}\n` +
+                `│ Current Text: "${config.AUTO_BIO_TEXT || defaultBio}"\n` +
+                `│ Kenya Time: ${getKenyaTime()}\n` +
                 `╰──────────────┈⊷`
             );
         }
     } catch (error) {
         console.error('❌ Auto-bio error:', error.message);
-        return reply("❌ ғᴀɪʟᴇᴅ ᴛᴏ ᴜᴘᴅᴀᴛᴇ ᴀᴜᴛᴏ-ʙɪᴏ sᴇᴛᴛɪɴɢs");
+        return reply("❌ Failed to update auto-bio settings.");
     }
 });
 
@@ -102,12 +92,9 @@ malvin({
 async function fetchQuote() {
     try {
         const response = await axios.get(quoteApiUrl);
-        if (response.status === 200 && response.data.content) {
-            return response.data.content;
-        }
+        if (response.status === 200 && response.data.content) return response.data.content;
         throw new Error('Invalid quote API response');
-    } catch (error) {
-        console.error('Quote fetch error:', error.message);
+    } catch {
         return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
     }
 }
@@ -116,20 +103,7 @@ async function fetchQuote() {
 async function startAutoBio(malvin, bioText) {
     stopAutoBio();
 
-    // Update immediately on start
-    try {
-        const quote = await fetchQuote();
-        const kenyaTime = getKenyaTime();
-        const formattedBio = bioText
-            .replace('{quote}', quote)
-            .replace('{time}', kenyaTime);
-        await malvin.updateProfileStatus(formattedBio);
-    } catch (error) {
-        console.error('❌ Initial bio update error:', error.message);
-    }
-
-    // Set interval for regular updates
-    bioInterval = setInterval(async () => {
+    async function updateBio() {
         try {
             const quote = await fetchQuote();
             const kenyaTime = getKenyaTime();
@@ -137,23 +111,16 @@ async function startAutoBio(malvin, bioText) {
                 .replace('{quote}', quote)
                 .replace('{time}', kenyaTime);
             await malvin.updateProfileStatus(formattedBio);
-        } catch (error) {
-            console.error('❌ Bio update error:', error.message);
-            setTimeout(async () => {
-                try {
-                    const quote = await fetchQuote();
-                    const kenyaTime = getKenyaTime();
-                    const formattedBio = bioText
-                        .replace('{quote}', quote)
-                        .replace('{time}', kenyaTime);
-                    await malvin.updateProfileStatus(formattedBio);
-                } catch (retryError) {
-                    console.error('❌ Bio retry error:', retryError.message);
-                    stopAutoBio();
-                }
-            }, 5000);
+        } catch (err) {
+            console.error('❌ Bio update error:', err.message);
         }
-    }, updateInterval);
+    }
+
+    // Update immediately
+    await updateBio();
+
+    // Set interval
+    bioInterval = setInterval(updateBio, updateInterval);
 }
 
 // Stop auto-bio updates
