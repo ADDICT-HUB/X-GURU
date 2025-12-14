@@ -37,7 +37,7 @@ malvin({
 ├ *ᴄᴏᴍᴘᴇᴛɪᴛɪᴏɴ*: ${competition} 🏆
 ${standingsList}
 ╰──────────────┈⊷
-> *ᴍᴀᴅᴇ ʙʏ ᴍᴀʀɪsᴇʟ*`;
+> *ᴍᴀᴅᴇ ʙʏ 𝗚𝘂𝗿𝘂𝗧𝗲𝗰𝗵 | X-GURU*`;
 
         await malvin.sendMessage(from, {
             text: caption,
@@ -103,7 +103,7 @@ malvin({
 ├ *ᴛᴏᴛᴀʟ*: ${finishedMatches.length} matches
 ${matchList}
 ╰──────────────┈⊷
-> *ᴍᴀᴅᴇ ʙʏ ᴍᴀʀɪsᴇʟ*`;
+> *ᴍᴀᴅᴇ ʙʏ 𝗚𝘂𝗿𝘂𝗧𝗲𝗰𝗵 | X-GURU*`;
 
         await malvin.sendMessage(from, {
             text: caption,
@@ -167,7 +167,7 @@ malvin({
 ├ *ᴛᴏᴛᴀʟ*: ${upcomingMatches.length} matches
 ${matchList}
 ╰──────────────┈⊷
-> *ᴍᴀᴅᴇ ʙʏ ᴍᴀʀɪsᴇʟ*`;
+> *ᴍᴀᴅᴇ ʙʏ 𝗚𝘂𝗿𝘂𝗧𝗲𝗰𝗵 | X-GURU*`;
 
         await malvin.sendMessage(from, {
             text: caption,
