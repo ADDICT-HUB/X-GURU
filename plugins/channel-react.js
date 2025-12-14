@@ -13,18 +13,16 @@ malvin({
     pattern: 'channelreact',
     alias: ['creact', 'chr'],
     react: '🔤',
-    desc: 'send stylized emoji reaction to channel 📢',
+    desc: 'Send stylized emoji reaction to a channel 📢',
     category: 'owner',
     use: '.chr <channel-link> <text>',
     filename: __filename
 }, async (malvin, mek, m, { q, command, isCreator, reply, from }) => {
     try {
-        if (!isCreator) {
-            return reply('❌ owner-only command 🚫');
-        }
+        if (!isCreator) return reply('❌ Owner-only command 🚫');
 
         if (!q) {
-            return reply(`❌ usage: ${command} https://whatsapp.com/channel/<id>/<msg-id> <text>\nexample: .chr https://whatsapp.com/channel/1234/5678 hello`);
+            return reply(`❌ Usage: ${command} https://whatsapp.com/channel/<id>/<msg-id> <text>\nExample: .chr https://whatsapp.com/channel/1234/5678 hello`);
         }
 
         await malvin.sendMessage(from, { react: { text: '⏳', key: m.key } });
@@ -33,7 +31,7 @@ malvin({
         const inputText = textParts.join(' ').toLowerCase();
 
         if (!link.includes('whatsapp.com/channel/') || !inputText) {
-            return reply('❌ invalid channel link or missing text 😔');
+            return reply('❌ Invalid channel link or missing text 😔');
         }
 
         const urlSegments = link.trim().split('/');
@@ -41,27 +39,27 @@ malvin({
         const messageId = urlSegments[5];
 
         if (!channelInvite || !messageId) {
-            return reply('❌ invalid channel or message id 🚫');
+            return reply('❌ Invalid channel or message ID 🚫');
         }
 
         // Stylize input text
-        const emoji = inputText
+        const emojiText = inputText
             .split('')
             .map(char => (char === ' ' ? '―' : stylizedChars[char] || char))
             .join('');
 
-        // Get newsletter metadata
+        // Get channel metadata
         const { id: channelJid, name: channelName } = await malvin.newsletterMetadata('newsletter', channelInvite);
 
         // Send stylized reaction
-        await malvin.newsletterReactMessage(channelJid, messageId, emoji);
+        await malvin.newsletterReactMessage(channelJid, messageId, emojiText);
 
+        // Caption with your branding
         const caption = `
 ╭───[ *ᴄʜᴀɴɴᴇʟ ʀᴇᴀᴄᴛ* ]───
-├ *ᴄʜᴀɴɴᴇʟ*: ${channelName} 
-├ *ʀᴇᴀᴄᴛɪᴏɴ*: ${emoji} 🔤
-╰───[ *ᴍᴇʀᴄᴇᴅᴇs* ]───
-> *ᴍᴀᴅᴇ ʙʏ ᴍᴀʀɪsᴇʟ*`;
+├ *Channel*: ${channelName} 
+├ *Reaction*: ${emojiText} 🔤
+╰───[ *X-GURU by GuruTech* ]───`;
 
         await malvin.sendMessage(from, {
             text: caption,
@@ -72,11 +70,10 @@ malvin({
 
     } catch (error) {
         console.error('❌ channelreact error:', error);
-        const errorMsg = error.message.includes('not-authorized')
-            ? '❌ bot not authorized for channel 😞'
-            : error.message.includes('not-found')
-            ? '❌ channel or message not found 😔'
-            : '❌ error sending reaction ⏰';
+        let errorMsg = '❌ Error sending reaction ⏰';
+        if (error.message.includes('not-authorized')) errorMsg = '❌ Bot not authorized for channel 😞';
+        else if (error.message.includes('not-found')) errorMsg = '❌ Channel or message not found 😔';
+
         await reply(errorMsg);
         await malvin.sendMessage(from, { react: { text: '❌', key: m.key } });
     }
