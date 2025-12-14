@@ -45,7 +45,7 @@ module.exports = {
   AUTO_STATUS_REPLY: getConfig("AUTO_STATUS_REPLY") || process.env.AUTO_STATUS_REPLY || "false",
   AUTO_STATUS_MSG: process.env.AUTO_STATUS_MSG || "*Just seen ur status 😆 🤖*",
   READ_MESSAGE: getConfig("READ_MESSAGE") || process.env.READ_MESSAGE || "false",
-  REJECT_MSG: process.env.REJECT_MSG || "*📵 Calls are not allowed on this number unless you have permission. 🚫*",
+  REJECT_MSG: process.env.REJECT_MSG || "*📵 Calls are not allowed on this number owner out of data 🫷🚫*",
   ALIVE_IMG: getConfig("ALIVE_IMG") || process.env.ALIVE_IMG || "https://files.catbox.moe/75baia.jpg",
   LIVE_MSG: process.env.LIVE_MSG || "> ʙᴏᴛ ɪs sᴘᴀʀᴋɪɴɢ ᴀᴄᴛɪᴠᴇ ᴀɴᴅ ᴀʟɪᴠᴇ\n\n\n> ɢɪᴛʜᴜʙ :* github.com/ADDICT-HUB/X-GURU",
 
@@ -58,7 +58,7 @@ module.exports = {
   DELETE_LINKS: getConfig("DELETE_LINKS") || process.env.DELETE_LINKS || "false",
   ANTI_DEL_PATH: process.env.ANTI_DEL_PATH || "inbox",
   ANTI_BOT: getConfig("ANTI_BOT") || process.env.ANTI_BOT || "true",
-  PM_BLOCKER: getConfig("PM_BLOCKER") || process.env.PM_BLOCKER || "true",
+  PM_BLOCKER: getConfig("PM_BLOCKER") || process.env.PM_BLOCKER || "false",
 
   // ===== BOT BEHAVIOR & APPEARANCE =====
   DESCRIPTION: process.env.DESCRIPTION || "*ᴍᴀᴅᴇ ʙʏ ɢᴜʀᴜᴛᴇᴄʜ*",
