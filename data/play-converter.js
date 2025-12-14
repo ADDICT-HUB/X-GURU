@@ -1,136 +1,148 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const { spawn } = require('child_process');
 
 class AudioConverter {
     constructor() {
         this.tempDir = path.join(__dirname, '../temp');
-        this.ensureTempDir();
         this.logFile = path.join(__dirname, '../logs/converter.log');
-        this.setupLogging();
+        this.queue = Promise.resolve();
+        this.ensureDirs();
     }
 
-    ensureTempDir() {
-        if (!fs.existsSync(this.tempDir)) {
-            fs.mkdirSync(this.tempDir, { recursive: true });
+    ensureDirs() {
+        for (const dir of [this.tempDir, path.dirname(this.logFile)]) {
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         }
     }
 
-    setupLogging() {
-        if (!fs.existsSync(path.dirname(this.logFile))) {
-            fs.mkdirSync(path.dirname(this.logFile), { recursive: true });
-        }
+    logError(err) {
+        const time = new Date().toISOString();
+        fs.appendFile(this.logFile, `[${time}] ${err.stack || err}\n`, () => {});
     }
 
-    async logError(error) {
-        const timestamp = new Date().toISOString();
-        const logMessage = `[${timestamp}] ERROR: ${error.stack || error}\n`;
-        fs.appendFileSync(this.logFile, logMessage);
-    }
-
-    async cleanFile(file) {
-        if (file && fs.existsSync(file)) {
-            try {
-                await fs.promises.unlink(file);
-            } catch (cleanError) {
-                await this.logError(cleanError);
-            }
-        }
-    }
-
-    async convert(buffer, args, ext, ext2) {
-        const timestamp = Date.now();
-        const inputPath = path.join(this.tempDir, `${timestamp}.${ext}`);
-        const outputPath = path.join(this.tempDir, `${timestamp}.${ext2}`);
-
+    async safeUnlink(file) {
         try {
-            await fs.promises.writeFile(inputPath, buffer);
-            
-            return new Promise((resolve, reject) => {
+            if (file && fs.existsSync(file)) await fs.promises.unlink(file);
+        } catch (e) {
+            this.logError(e);
+        }
+    }
+
+    name(ext) {
+        return `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    }
+
+    enqueue(task) {
+        this.queue = this.queue.then(task).catch(() => {});
+        return this.queue;
+    }
+
+    getDuration(file) {
+        return new Promise(resolve => {
+            const p = spawn(ffmpegPath, ['-i', file]);
+            let out = '';
+            p.stderr.on('data', d => out += d.toString());
+            p.on('close', () => {
+                const m = out.match(/Duration:\s(\d+):(\d+):(\d+)/);
+                if (!m) return resolve(0);
+                resolve(+m[1] * 3600 + +m[2] * 60 + +m[3]);
+            });
+        });
+    }
+
+    detectType(ext) {
+        return ['mp4','mkv','avi','mov','webm'].includes(ext) ? 'video' : 'audio';
+    }
+
+    convert(buffer, args, inExt, outExt, limit = 300) {
+        return this.enqueue(() => new Promise(async (resolve, reject) => {
+            const input = path.join(this.tempDir, this.name(inExt));
+            const output = path.join(this.tempDir, this.name(outExt));
+            let killed = false;
+
+            try {
+                await fs.promises.writeFile(input, buffer);
+                if (await this.getDuration(input) > limit) {
+                    await this.safeUnlink(input);
+                    return reject(new Error('Media too long'));
+                }
+
                 const ffmpeg = spawn(ffmpegPath, [
                     '-y',
-                    '-i', inputPath,
+                    '-loglevel', 'error',
+                    '-i', input,
                     ...args,
-                    outputPath
-                ], { timeout: 60000 }); // Increased timeout to 60 seconds
+                    output
+                ]);
 
-                let errorOutput = '';
-                ffmpeg.stderr.on('data', (data) => {
-                    const errorData = data.toString();
-                    errorOutput += errorData;
-                    console.error('FFmpeg Error:', errorData);
-                });
+                const timer = setTimeout(() => {
+                    killed = true;
+                    ffmpeg.kill('SIGKILL');
+                }, 60_000);
 
-                ffmpeg.on('close', async (code) => {
-                    await this.cleanFile(inputPath);
-                    
-                    if (code !== 0) {
-                        await this.logError(new Error(`FFmpeg process exited with code ${code}\n${errorOutput}`));
-                        await this.cleanFile(outputPath);
-                        return reject(new Error(`Conversion failed (code ${code}). Check logs for details.`));
+                ffmpeg.on('close', async code => {
+                    clearTimeout(timer);
+                    await this.safeUnlink(input);
+
+                    if (killed || code !== 0) {
+                        await this.safeUnlink(output);
+                        return reject(new Error('Conversion failed'));
                     }
 
-                    try {
-                        const result = await fs.promises.readFile(outputPath);
-                        await this.cleanFile(outputPath);
-                        resolve(result);
-                    } catch (readError) {
-                        await this.logError(readError);
-                        reject(new Error('Failed to read converted file'));
-                    }
+                    const data = await fs.promises.readFile(output);
+                    await this.safeUnlink(output);
+                    resolve(data);
                 });
 
-                ffmpeg.on('error', async (err) => {
-                    await this.logError(err);
-                    reject(new Error('FFmpeg process failed to start'));
+                ffmpeg.on('error', async e => {
+                    clearTimeout(timer);
+                    this.logError(e);
+                    await this.safeUnlink(input);
+                    await this.safeUnlink(output);
+                    reject(e);
                 });
-            });
-        } catch (err) {
-            await this.logError(err);
-            await this.cleanFile(inputPath);
-            await this.cleanFile(outputPath);
-            throw err;
-        }
+
+            } catch (e) {
+                this.logError(e);
+                await this.safeUnlink(input);
+                await this.safeUnlink(output);
+                reject(e);
+            }
+        }));
     }
 
     toAudio(buffer, ext) {
         return this.convert(buffer, [
-            '-vn',                  // No video
-            '-ac', '2',            // Stereo audio
-            '-ar', '44100',       // Sample rate
-            '-b:a', '192k',        // Bitrate (192kbps for better quality)
-            '-acodec', 'libmp3lame', // Force MP3 codec
-            '-f', 'mp3'            // Force MP3 format
+            '-vn',
+            '-af', 'loudnorm',
+            '-ac', '2',
+            '-ar', '44100',
+            '-b:a', '192k',
+            '-codec:a', 'libmp3lame'
         ], ext, 'mp3');
     }
 
     toPTT(buffer, ext) {
         return this.convert(buffer, [
-            '-vn',                  // No video
-            '-c:a', 'libopus',     // OPUS codec
-            '-b:a', '128k',        // Bitrate
-            '-vbr', 'on',          // Variable bitrate
-            '-compression_level', '10', // Compression level
-            '-application', 'voip'  // Optimized for voice
-        ], ext, 'opus');
+            '-vn',
+            '-af', 'loudnorm',
+            '-ac', '1',
+            '-ar', '48000',
+            '-b:a', '128k',
+            '-codec:a', 'libopus',
+            '-application', 'voip'
+        ], ext, 'opus', 120);
     }
 
     async toWhatsAppAudio(buffer, ext) {
         try {
-            // First try standard MP3 conversion
             return await this.toAudio(buffer, ext);
-        } catch (mp3Error) {
-            await this.logError(mp3Error);
-            console.log('MP3 conversion failed, trying OPUS fallback');
-            
-            // If MP3 fails, try OPUS format which WhatsApp also supports
-            try {
-                return await this.toPTT(buffer, ext);
-            } catch (opusError) {
-                await this.logError(opusError);
-                throw new Error('All conversion attempts failed');
-            }
+        } catch (e) {
+            this.logError(e);
+            return this.toPTT(buffer, ext);
         }
     }
 }
