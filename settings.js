@@ -73,8 +73,8 @@ module.exports = {
   version: process.env.version || "1.5.0",
   TIMEZONE: settings.TIMEZONE || process.env.TIMEZONE || "Africa/Harare",
 
-  // ===== CATEGORY-SPECIFIC IMAGE URLs =====
-  MENU_IMAGES: {
+// ===== CATEGORY-SPECIFIC IMAGE URLs =====
+MENU_IMAGES: {
   '1': process.env.DOWNLOAD_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
   '2': process.env.GROUP_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
   '3': process.env.FUN_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
@@ -89,4 +89,4 @@ module.exports = {
   '12': process.env.SETTINGS_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
   '13': process.env.AUDIO_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
   '14': process.env.PRIVACY_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg"
-}
+},
