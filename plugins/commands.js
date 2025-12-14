@@ -91,7 +91,7 @@ malvin({
 ╭━❰ 🔄 𝐂𝐎𝐍𝐕𝐄𝐑𝐓 𝐂𝐌𝐃 🔄 ❱━╮
 │ • .sticker  - Photo to sticker
 │ • .tts      - Text to speech
-│ • .trt      - Change bot language
+│ • •trt      - Change bot language
 ╰━━━━━━━━━━━━╯
 
 ${config.DESCRIPTION || ""}
@@ -100,15 +100,15 @@ ${config.DESCRIPTION || ""}
         await malvin.sendMessage(
             from,
             {
-                image: { url: "https://url.bwmxmd.online/Adams.h0gop5c7.jpeg" },
+                image: { url: "https://i.ibb.co/83NQTRL/xguru-1765723475694.jpg" },
                 caption: dec,
                 contextInfo: {
                     mentionedJid: [m.sender],
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363299029326322@newsletter',
-                        newsletterName: '𝖒𝖆𝖗𝖎𝖘𝖊𝖑',
+                        newsletterJid: '120363421164015033@newsletter',
+                        newsletterName: 'GuruTech',
                         serverMessageId: 143
                     }
                 }
