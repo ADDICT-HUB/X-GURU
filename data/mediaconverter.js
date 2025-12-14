@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const { spawn } = require('child_process');
 
@@ -16,74 +17,99 @@ class AudioConverter {
     }
 
     async cleanFile(file) {
-        if (file && fs.existsSync(file)) {
-            await fs.promises.unlink(file).catch(() => {});
-        }
+        try {
+            if (file && fs.existsSync(file)) {
+                await fs.promises.unlink(file);
+            }
+        } catch {}
     }
 
-    async convert(buffer, args, ext, ext2) {
-        const inputPath = path.join(this.tempDir, `${Date.now()}.${ext}`);
-        const outputPath = path.join(this.tempDir, `${Date.now()}.${ext2}`);
+    filename(ext) {
+        return `${Date.now()}-${crypto.randomBytes(5).toString('hex')}.${ext}`;
+    }
 
-        try {
-            await fs.promises.writeFile(inputPath, buffer);
-            
-            return new Promise((resolve, reject) => {
+    convert(buffer, args, ext, outExt) {
+        const inputPath = path.join(this.tempDir, this.filename(ext));
+        const outputPath = path.join(this.tempDir, this.filename(outExt));
+
+        return new Promise(async (resolve, reject) => {
+            let killed = false;
+
+            try {
+                await fs.promises.writeFile(inputPath, buffer);
+
                 const ffmpeg = spawn(ffmpegPath, [
                     '-y',
+                    '-loglevel', 'error',
                     '-i', inputPath,
                     ...args,
                     outputPath
-                ], { timeout: 30000 });
+                ]);
 
-                let errorOutput = '';
-                ffmpeg.stderr.on('data', (data) => errorOutput += data.toString());
+                const timer = setTimeout(() => {
+                    killed = true;
+                    ffmpeg.kill('SIGKILL');
+                }, 30_000);
 
-                ffmpeg.on('close', async (code) => {
+                let stderr = '';
+                ffmpeg.stderr.on('data', d => stderr += d.toString());
+
+                ffmpeg.on('close', async code => {
+                    clearTimeout(timer);
                     await this.cleanFile(inputPath);
-                    
-                    if (code !== 0) {
+
+                    if (killed || code !== 0) {
                         await this.cleanFile(outputPath);
-                        return reject(new Error(`Conversion failed with code ${code}`));
+                        return reject(new Error('Audio conversion failed'));
                     }
 
                     try {
-                        const result = await fs.promises.readFile(outputPath);
+                        const data = await fs.promises.readFile(outputPath);
                         await this.cleanFile(outputPath);
-                        resolve(result);
-                    } catch (readError) {
-                        reject(readError);
+                        resolve(data);
+                    } catch (e) {
+                        await this.cleanFile(outputPath);
+                        reject(e);
                     }
                 });
 
-                ffmpeg.on('error', (err) => {
+                ffmpeg.on('error', async err => {
+                    clearTimeout(timer);
+                    await this.cleanFile(inputPath);
+                    await this.cleanFile(outputPath);
                     reject(err);
                 });
-            });
-        } catch (err) {
-            await this.cleanFile(inputPath);
-            await this.cleanFile(outputPath);
-            throw err;
-        }
+
+            } catch (err) {
+                await this.cleanFile(inputPath);
+                await this.cleanFile(outputPath);
+                reject(err);
+            }
+        });
     }
 
+    // 🎵 Normal WhatsApp audio
     toAudio(buffer, ext) {
         return this.convert(buffer, [
             '-vn',
+            '-map_metadata', '-1',
             '-ac', '2',
-            '-b:a', '128k',
             '-ar', '44100',
-            '-f', 'mp3'
+            '-b:a', '128k',
+            '-codec:a', 'libmp3lame'
         ], ext, 'mp3');
     }
 
+    // 🎤 Voice note (PTT)
     toPTT(buffer, ext) {
         return this.convert(buffer, [
             '-vn',
-            '-c:a', 'libopus',
+            '-map_metadata', '-1',
+            '-ac', '1',
+            '-ar', '48000',
             '-b:a', '128k',
-            '-vbr', 'on',
-            '-compression_level', '10'
+            '-codec:a', 'libopus',
+            '-application', 'voip'
         ], ext, 'opus');
     }
 }
