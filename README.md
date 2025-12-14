@@ -14,24 +14,24 @@
 
 <p align="center">
 
-<a href="[https://wa.me/2547XXXXXXX?text=PAIR](https://guruxpair1.onrender.com/)">
+<a href="https://guruxpair1.onrender.com/">
   <img src="https://img.shields.io/badge/PAIR-BOT-success?style=for-the-badge&logo=whatsapp">
 </a>
 
-<a href="https://chat.whatsapp.com/YOUR_CHANNEL_INVITE">
+<a href="https://whatsapp.com/channel/0029VbBNUAFFXUuUmJdrkj1f">
   <img src="https://img.shields.io/badge/WHATSAPP-CHANNEL-green?style=for-the-badge&logo=whatsapp">
+</a>
+
+<a href="https://railway.com?referralCode=vi4apz">
+  <img src="https://img.shields.io/badge/DEPLOY-RAILWAY-purple?style=for-the-badge&logo=railway">
+</a>
+
+<a href="https://wa.me/254735403829">
+  <img src="https://img.shields.io/badge/CONTACT-ADMIN-red?style=for-the-badge&logo=whatsapp">
 </a>
 
 <a href="https://github.com/ADDICT-HUB/X-GURU/fork">
   <img src="https://img.shields.io/badge/FORK-REPO-orange?style=for-the-badge&logo=github">
-</a>
-
-<a href="https://heroku.com/deploy?template=https://github.com/ADDICT-HUB/X-GURU">
-  <img src="https://img.shields.io/badge/DEPLOY-HEROKU-purple?style=for-the-badge&logo=heroku">
-</a>
-
-<a href="https://wa.me/2547XXXXXXX">
-  <img src="https://img.shields.io/badge/CONTACT-ADMIN-red?style=for-the-badge&logo=whatsapp">
 </a>
 
 <a href="https://github.com/ADDICT-HUB/X-GURU/archive/refs/heads/main.zip">
@@ -49,7 +49,7 @@
 - ✅ Anti‑Delete & Anti‑Spam  
 - ✅ Fun & Utility Commands  
 - ✅ Fast Response & Lightweight  
-- ✅ Easy Deployment (Heroku / Railway / Render / Panels)
+- ✅ Easy Deployment (Railway / Local / VPS / Panels)
 
 ---
 
@@ -61,6 +61,3 @@ git clone https://github.com/ADDICT-HUB/X-GURU.git
 cd X-GURU
 npm install
 npm start
-
-
-https://dashboard.heroku.com/new?template=https%3A%2F%2Fgithub.com%2Fbreshyb%2Fbase
