@@ -1,31 +1,25 @@
-
 {
-"bot-name": "Mercedes",
-  "description": "Made By Marisel",
-  "logo": "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
-  "keywords": ["bot"],
-  "documentation-link": "https://malvinxd-pairsession.onrender.com/",
-    "owner-verification":"malvink003@gmail.com",
-  
-    "env": {
-      "SESSION_ID": {
-        "description": "Put your SESSION_ID here. It starts with malvin~",
-        "value":"",
-        "required": true
-        
-      },
-      
+  "bot-name": "X-GURU",
+  "description": "Made by GuruTech | X-GURU",
+  "logo": "https://i.ibb.co/83NQTRL/xguru-1765723475694.jpg",
+  "keywords": ["X-GURU", "bot"],
+  "documentation-link": "https://github.com/ADDICT-HUB/X-GURU",
+  "owner-verification": "gurutech@example.com",
+  "env": {
+    "SESSION_ID": {
+      "description": "Put your SESSION_ID here. It starts with malvin~",
+      "value": "",
+      "required": true
+    },
     "OWNER_NUMBER": {
       "description": "Enter owner number",
       "required": true,
-      "value": "2547400075677"
-      
-       },
-      "TIMEZONE": {
+      "value": "+254735403829"
+    },
+    "TIMEZONE": {
       "description": "Enter country timezone",
       "required": true,
       "value": "Africa/Nairobi"
-
-    }  
+    }
   }
 }
