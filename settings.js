@@ -90,3 +90,5 @@ MENU_IMAGES: {
   '13': process.env.AUDIO_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
   '14': process.env.PRIVACY_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg"
 },
+
+};
