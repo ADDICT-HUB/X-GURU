@@ -1,11 +1,10 @@
 {
-  "name": "Mercedes",
-  "description": "WhatsApp bot made by Marisel",
-  "logo": "https://files.catbox.moe/lszre1.jpg",
-  "keywords": ["Mercedes"],
+  "name": "X-GURU",
+  "description": "WhatsApp bot made by GuruTech | X-GURU",
+  "logo": "https://i.ibb.co/83NQTRL/xguru-1765723475694.jpg",
+  "keywords": ["X-GURU"],
   "success_url": "/",
-
-    "stack": "container",
+  "stack": "container",
   "env": {
     "SESSION_ID": {
       "description": "Put the session-id here.",
@@ -17,57 +16,46 @@
       "required": false,
       "value": "."
     },
-    
     "MODE": {
       "description": "select your bot work type public-private-inbox-group.",
       "required": false,
       "value": "private"
-   }, 
-
+    },
     "OWNER_NUMBER": {
       "description": "put the owner number for bot.",
       "required": false,
-      "value": "254740007567"
-
+      "value": "254735403829"
     }, 
-
     "BOT_NAME": {
       "description": "Type here the bot name.",
       "required": false,
-      "value": "Mercedes"
+      "value": "X-GURU"
     },
-    
     "MENU_IMAGE_URL": {
       "description": "add url for mention reply and menu if want.",
       "required": false,
-      "value": "https://files.catbox.moe/s33ai1.jpg"
+      "value": "https://i.ibb.co/83NQTRL/xguru-1765723475694.jpg"
     },
-    
-     "DESCRIPTION": {
+    "DESCRIPTION": {
       "description": "add caption for menu and other",
       "required": false,
-      "value": "*Made By Marisel*"
+      "value": "*Made by GuruTech | X-GURU*"
     },
-    
     "AUTO_RECORDING": {
-      "description": "Make it true if you want auto recoding.",
+      "description": "Make it true if you want auto recording.",
       "required": false,
       "value": "false"
     },
-
     "AUTO_TYPING": {
       "description": "Make it true if you want auto typing.",
       "required": false,
       "value": "false"
     }
-
-},
-
-     "buildpacks": [
-        {
-            "url": "https://github.com/heroku/heroku-buildpack-nodejs.git"
-        }
-     ],
+  },
+  "buildpacks": [
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-nodejs.git"
+    }
+  ],
   "stack": "heroku-24"
 }
-
