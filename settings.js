@@ -75,19 +75,18 @@ module.exports = {
 
   // ===== CATEGORY-SPECIFIC IMAGE URLs =====
   MENU_IMAGES: {
-    '1': process.env.DOWNLOAD_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
-    '2': process.env.GROUP_MENU_IMAGE || "https://url.bwmxmd.online/Adams.xm472dqv.jpeg",
-    '3': process.env.FUN_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
-    '4': process.env.OWNER_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
-    '5': process.env.AI_MENU_IMAGE || "https://url.bwmxmd.online/Adams.zjrmnw18.jpeg",
-    '6': process.env.ANIME_MENU_IMAGE || "https://url.bwmxmd.online/Adams.h0gop5c7.jpeg",
-    '7': process.env.CONVERT_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
-    '8': process.env.OTHER_MENU_IMAGE || "https://url.bwmxmd.online/Adams.zjrmnw18.jpeg",
-    '9': process.env.REACTION_MENU_IMAGE || "https://url.bwmxmd.online/Adams.xm472dqv.jpeg",
-    '10': process.env.MAIN_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
-    '11': process.env.LOGO_MAKER_MENU_IMAGE || "https://url.bwmxmd.online/Adams.h0gop5c7.jpeg",
-    '12': process.env.SETTINGS_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
-    '13': process.env.AUDIO_MENU_IMAGE || "https://url.bwmxmd.online/Adams.h0gop5c7.jpeg",
-    '14': process.env.PRIVACY_MENU_IMAGE || "https://url.bwmxmd.online/Adams.xm472dqv.jpeg"
-  }
-};
+  '1': process.env.DOWNLOAD_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '2': process.env.GROUP_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '3': process.env.FUN_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '4': process.env.OWNER_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '5': process.env.AI_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '6': process.env.ANIME_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '7': process.env.CONVERT_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '8': process.env.OTHER_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '9': process.env.REACTION_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '10': process.env.MAIN_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '11': process.env.LOGO_MAKER_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '12': process.env.SETTINGS_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '13': process.env.AUDIO_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
+  '14': process.env.PRIVACY_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg"
+}
