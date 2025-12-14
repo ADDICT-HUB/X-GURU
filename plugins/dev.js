@@ -12,7 +12,7 @@ const tinyCaps = (text) => {
 
 malvin({
   pattern: "dev",
-  alias: ["developer", "dev"],
+  alias: ["developer", "owner"],
   desc: "Displays the developer info",
   category: "owner",
   react: "👨‍💻",
@@ -22,41 +22,41 @@ malvin({
     const name = pushname || "there";
 
     const caption = `
-╭─⌈ ${tinyCaps("ᴍᴇʀᴄᴇᴅᴇs")}* ⌋─
+╭─⌈ ${tinyCaps("X-GURU")} ⌋─
 │ 👋 Hello, *${name}*!
-│ 🤖 I'm Mariael, the creator & maintainer
+│ 🤖 I'm GuruTech, the creator & maintainer
 │    of this smart WhatsApp bot.
 │ 👨‍💻 *OWNER INFO:*
 │ ───────────────
-│ 🧠 Name    : 𝖒𝖆𝖗𝖎𝖘𝖊𝖑
+│ 🧠 Name    : GuruTech
 │ 🎂 Age     : 20+
-│ 📞 Contact : wa.me/254740007567
-│ 📺 YouTube : 𝖒𝖆𝖗𝖎𝖘𝖊𝖑
+│ 📞 Contact : wa.me/+254735403829
+│ 📺 YouTube : GuruTech
 │            https://youtube.com/@wemacomic
 │
 ╰───────────────
 
-> *ᴍᴀᴅᴇ ʙʏ ᴍᴀʀɪsᴇʟ*
+> *Made by GuruTech | Powered by X-GURU*
 `.trim();
 
     await malvin.sendMessage(
       from,
       {
-        image: { url: 'https://url.bwmxmd.online/Adams.xm472dqv.jpeg' },
+        image: { url: 'https://files.catbox.moe/75baia.jpg' },
         caption,
         contextInfo: {
           mentionedJid: [m.sender],
           forwardingScore: 999,
           isForwarded: true,
           forwardedNewsletterMessageInfo: {
-            newsletterJid: '1120363299029326322@newsletter',
-            newsletterName: '𝖒𝖆𝖗𝖎𝖘𝖊𝖑',
+            newsletterJid: '120363421164015033@newsletter',
+            newsletterName: 'X-GURU',
             serverMessageId: 143
           },
           externalAdReply: {
-            title: "ᴍᴇʀᴄᴇᴅᴇs",
-            body: "𝖒𝖆𝖗𝖎𝖘𝖊𝖑",
-            thumbnailUrl: 'https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg',
+            title: "X-GURU",
+            body: "GuruTech",
+            thumbnailUrl: 'https://files.catbox.moe/75baia.jpg',
             mediaType: 1,
             renderSmallerThumbnail: true,
             showAdAttribution: true,
@@ -68,7 +68,7 @@ malvin({
       { quoted: mek }
     );
   } catch (e) {
-    console.error("Error in .owner command:", e);
+    console.error("Error in .dev command:", e);
     return reply(`❌ Error: ${e.message || e}`);
   }
 });
