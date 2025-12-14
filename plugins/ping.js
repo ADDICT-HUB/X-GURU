@@ -2,10 +2,7 @@ const config = require('../settings');
 const { malvin } = require('../malvin');
 const moment = require('moment-timezone');
 
-// Bot start time for uptime calculation
 const botStartTime = process.hrtime.bigint();
-
-// Cache for timezone formatting
 const formatCache = new Map();
 
 const emojiSets = {
@@ -27,71 +24,52 @@ const emojiSets = {
 
 malvin({
     pattern: 'ping',
-    alias: ['speed', 'pong','p'],
+    alias: ['speed', 'pong', 'p'],
     desc: 'Check bot\'s response time and status',
     category: 'main',
     react: '⚡',
     filename: __filename
 }, async (malvin, mek, m, { from, sender, reply }) => {
     try {
-        // High-resolution start time
         const start = process.hrtime.bigint();
-
-        // Random emoji and loading bar
         const reactionEmoji = emojiSets.reactions[Math.floor(Math.random() * emojiSets.reactions.length)];
         const loadingBar = emojiSets.bars[Math.floor(Math.random() * emojiSets.bars.length)];
-
-        // React with emoji (with retry)
-        let attempts = 0;
         const maxAttempts = 2;
-        while (attempts < maxAttempts) {
-            try {
-                await malvin.sendMessage(from, { react: { text: reactionEmoji, key: mek.key } });
-                break;
-            } catch (reactError) {
-                attempts++;
-                if (attempts === maxAttempts) throw new Error('Failed to send reaction');
-            }
+
+        // React
+        for (let i = 0; i < maxAttempts; i++) {
+            try { await malvin.sendMessage(from, { react: { text: reactionEmoji, key: mek.key } }); break; } 
+            catch { if (i === maxAttempts - 1) throw new Error('Failed to send reaction'); }
         }
 
-        // Calculate response time in seconds
         const responseTime = Number(process.hrtime.bigint() - start) / 1e9;
-
-        // Determine status based on response time
         const statusText = emojiSets.status.find(s => responseTime < s.threshold)?.text || '🐢 Slow';
 
-        // Time info (cache formatting for performance)
         const timezone = config.TIMEZONE || 'Africa/Harare';
         const cacheKey = `${timezone}:${moment().format('YYYY-MM-DD HH:mm:ss')}`;
         let time, date;
+
         if (formatCache.has(cacheKey)) {
             ({ time, date } = formatCache.get(cacheKey));
         } else {
             time = moment().tz(timezone).format('HH:mm:ss');
             date = moment().tz(timezone).format('DD/MM/YYYY');
             formatCache.set(cacheKey, { time, date });
-            if (formatCache.size > 100) formatCache.clear(); // Prevent memory leak
+            if (formatCache.size > 100) formatCache.clear();
         }
 
-        // Uptime
         const uptimeSeconds = Number(process.hrtime.bigint() - botStartTime) / 1e9;
         const uptime = moment.duration(uptimeSeconds, 'seconds').humanize();
 
-        // Memory usage
         const memory = process.memoryUsage();
         const memoryUsage = `${(memory.heapUsed / 1024 / 1024).toFixed(2)}/${(memory.heapTotal / 1024 / 1024).toFixed(2)} MB`;
 
-        // System info
         const nodeVersion = process.version;
-
-        // Owner & bot name
         const ownerName = config.OWNER_NAME || 'Marisel';
         const botName = config.BOT_NAME || '𝖒𝖆𝖗𝖎𝖘𝖊𝖑';
         const repoLink = config.REPO || 'https://github.com/betingrich4/Mercedes';
 
-        // Final output
         const pingMsg = `
-
 *${statusText}*
 
 ⚡ \`Response Time:\` ${responseTime.toFixed(2)}s
@@ -110,9 +88,8 @@ malvin({
 ${loadingBar}
 `.trim();
 
-        // Send message with retry
-        attempts = 0;
-        while (attempts < maxAttempts) {
+        // Send ping info
+        for (let i = 0; i < maxAttempts; i++) {
             try {
                 await malvin.sendMessage(from, {
                     text: pingMsg,
@@ -122,19 +99,15 @@ ${loadingBar}
                         isForwarded: true,
                         forwardedNewsletterMessageInfo: {
                             newsletterJid: '120363299029326322@newsletter',
-                            newsletterName: `𝖒𝖆𝖗𝖎𝖘𝖊𝖑`,
+                            newsletterName: botName,
                             serverMessageId: 143
                         }
                     }
                 }, { quoted: mek });
                 break;
-            } catch (sendError) {
-                attempts++;
-                if (attempts === maxAttempts) throw new Error('Failed to send message');
-            }
+            } catch { if (i === maxAttempts - 1) throw new Error('Failed to send message'); }
         }
 
-        // Success reaction
         await malvin.sendMessage(from, { react: { text: '✅', key: mek.key } });
 
     } catch (e) {
