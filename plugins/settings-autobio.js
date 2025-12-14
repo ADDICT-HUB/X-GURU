@@ -1,7 +1,6 @@
 const axios = require('axios');
 const config = require('../settings');
 const { malvin } = require('../malvin');
-const fs = require('fs');
 
 let bioInterval;
 const defaultBio = config.AUTO_BIO_TEXT || "X-GURU | Quote: {quote} | Time: {time}";
@@ -30,10 +29,54 @@ function getKenyaTime() {
         month: 'short',
         year: 'numeric'
     };
-    
     return new Date().toLocaleString('en-US', options);
 }
 
+// Start auto-bio updates
+async function startAutoBio(malvin, bioText) {
+    stopAutoBio();
+
+    async function updateBio() {
+        try {
+            const quote = await fetchQuote();
+            const kenyaTime = getKenyaTime();
+            const formattedBio = bioText
+                .replace('{quote}', quote)
+                .replace('{time}', kenyaTime);
+            await malvin.updateProfileStatus(formattedBio);
+            console.log(`✅ Auto-bio updated: ${formattedBio}`);
+        } catch (err) {
+            console.error('❌ Bio update error:', err.message);
+        }
+    }
+
+    // Update immediately
+    await updateBio();
+
+    // Set interval
+    bioInterval = setInterval(updateBio, updateInterval);
+}
+
+// Stop auto-bio updates
+function stopAutoBio() {
+    if (bioInterval) {
+        clearInterval(bioInterval);
+        bioInterval = null;
+    }
+}
+
+// Fetch random quote
+async function fetchQuote() {
+    try {
+        const response = await axios.get(quoteApiUrl);
+        if (response.status === 200 && response.data.content) return response.data.content;
+        throw new Error('Invalid quote API response');
+    } catch {
+        return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
+    }
+}
+
+// Command to toggle auto-bio manually
 malvin({
     pattern: 'autobio',
     alias: ['autoabout'],
@@ -50,20 +93,15 @@ malvin({
     try {
         if (action === 'on') {
             if (config.AUTO_BIO === "true") return reply("ℹ️ Auto-bio is already enabled.");
-
             config.AUTO_BIO = "true";
             config.AUTO_BIO_TEXT = customBio;
-
-            startAutoBio(malvin, customBio);
+            await startAutoBio(malvin, customBio);
             return reply(`✅ Auto-bio enabled!\nCurrent text: "${customBio}"`);
-
         } else if (action === 'off') {
             if (config.AUTO_BIO !== "true") return reply("ℹ️ Auto-bio is already disabled.");
-
             config.AUTO_BIO = "false";
             stopAutoBio();
             return reply("✅ Auto-bio disabled.");
-
         } else {
             return reply(
                 `╭━━〔 🤖 Auto-Bio Settings 〕━━┈⊷\n` +
@@ -88,53 +126,10 @@ malvin({
     }
 });
 
-// Fetch random quote
-async function fetchQuote() {
-    try {
-        const response = await axios.get(quoteApiUrl);
-        if (response.status === 200 && response.data.content) return response.data.content;
-        throw new Error('Invalid quote API response');
-    } catch {
-        return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
-    }
-}
-
-// Start auto-bio updates
-async function startAutoBio(malvin, bioText) {
-    stopAutoBio();
-
-    async function updateBio() {
-        try {
-            const quote = await fetchQuote();
-            const kenyaTime = getKenyaTime();
-            const formattedBio = bioText
-                .replace('{quote}', quote)
-                .replace('{time}', kenyaTime);
-            await malvin.updateProfileStatus(formattedBio);
-        } catch (err) {
-            console.error('❌ Bio update error:', err.message);
-        }
-    }
-
-    // Update immediately
-    await updateBio();
-
-    // Set interval
-    bioInterval = setInterval(updateBio, updateInterval);
-}
-
-// Stop auto-bio updates
-function stopAutoBio() {
-    if (bioInterval) {
-        clearInterval(bioInterval);
-        bioInterval = null;
-    }
-}
-
-// Initialize auto-bio if enabled
-module.exports.init = (malvin) => {
+// Auto-start auto-bio on bot launch
+module.exports.init = async (malvin) => {
     if (config.AUTO_BIO === "true") {
         const bioText = config.AUTO_BIO_TEXT || defaultBio;
-        startAutoBio(malvin, bioText);
+        await startAutoBio(malvin, bioText);
     }
 };
