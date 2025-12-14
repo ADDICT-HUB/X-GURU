@@ -5,7 +5,7 @@ const os = require("os");
 const path = require("path");
 const { malvin } = require("../malvin");
 
-// ImgBB API keys — replace with your own if needed
+// ImgBB API keys
 const API_KEYS = [
   "40dfb24c7b48ba51487a9645abf33148",
   "4a9c3527b0cd8b12dd4d8ab166a0f592",
@@ -30,7 +30,7 @@ malvin({
     if (!mime.startsWith("image")) return reply("*[❗] Reply to an image!*");
 
     const buffer = await quoted.download();
-    const filePath = path.join(os.tmpdir(), "vision-v.jpg");
+    const filePath = path.join(os.tmpdir(), `xguru_${Date.now()}.jpg`);
     fs.writeFileSync(filePath, buffer);
 
     let imageUrl, lastError;
@@ -44,7 +44,7 @@ malvin({
         });
 
         imageUrl = res?.data?.data?.url;
-        if (!imageUrl) throw new Error("No URL returned");
+        if (!imageUrl) throw new Error("No URL returned from ImgBB.");
         break;
       } catch (err) {
         lastError = err;
@@ -58,10 +58,11 @@ malvin({
 
     reply(
       `✅ *IMAGE UPLOADED SUCCESSFULLY!*\n\n` +
-      `📂 *File Size:* ${buffer.length} bytes\n` +
+      `📂 *File Size:* ${formatBytes(buffer.length)}\n` +
       `🔗 *URL:* ${imageUrl}\n\n` +
-      `> ᴍᴀᴅᴇ ʙʏ GuruTech`
+      `> Made by GuruTech`
     );
+
   } catch (e) {
     console.error("tourl error:", e);
     reply(`❌ Error: ${e.message || e}`);
@@ -77,7 +78,7 @@ malvin({
   category: "utility",
   use: ".tourl2 (reply to media)",
   filename: __filename
-}, async (client, m, args, { reply }) => {
+}, async (malvin, mek, m, { reply }) => {
   try {
     const q = m.quoted || m;
     const mime = (q.msg || q).mimetype || "";
@@ -88,12 +89,11 @@ malvin({
                 mime.includes("png") ? ".png" :
                 mime.includes("video") ? ".mp4" :
                 mime.includes("audio") ? ".mp3" : "";
-    const name = `file${ext}`;
     const tmp = path.join(os.tmpdir(), `catbox_${Date.now()}${ext}`);
     fs.writeFileSync(tmp, buffer);
 
     const form = new FormData();
-    form.append("fileToUpload", fs.createReadStream(tmp), name);
+    form.append("fileToUpload", fs.createReadStream(tmp), `file${ext}`);
     form.append("reqtype", "fileupload");
 
     const res = await axios.post("https://catbox.moe/user/api.php", form, {
@@ -111,8 +111,9 @@ malvin({
       `✅ *${type} Uploaded!*\n\n` +
       `📁 *Size:* ${formatBytes(buffer.length)}\n` +
       `🔗 *URL:* ${res.data}\n\n` +
-      `> ᴍᴀᴅᴇ ʙʏ GuruTech`
+      `> Made by GuruTech`
     );
+
   } catch (e) {
     console.error("tourl2 error:", e);
     reply(`❌ ${e.message || e}`);
@@ -128,7 +129,7 @@ malvin({
   category: "utility",
   use: ".docanalyze [your question] [reply to doc]",
   filename: __filename
-}, async (client, m, args, { reply }) => {
+}, async (malvin, mek, m, { args, reply }) => {
   try {
     const q = m.quoted || m;
     const mime = (q.msg || q).mimetype || "";
@@ -139,12 +140,11 @@ malvin({
     const question = args.join(" ") || "Summarize this document";
     const buffer = await q.download();
     const ext = mime.includes("pdf") ? ".pdf" : mime.includes("word") ? ".doc" : ".docx";
-    const name = `document${ext}`;
     const tmp = path.join(os.tmpdir(), `doc_${Date.now()}${ext}`);
     fs.writeFileSync(tmp, buffer);
 
     const form = new FormData();
-    form.append("fileToUpload", fs.createReadStream(tmp), name);
+    form.append("fileToUpload", fs.createReadStream(tmp), `document${ext}`);
     form.append("reqtype", "fileupload");
 
     const catbox = await axios.post("https://catbox.moe/user/api.php", form, {
@@ -166,8 +166,9 @@ malvin({
       `❓ *Question:* ${question}\n` +
       `🔗 *Doc URL:* ${docUrl}\n\n` +
       `🧠 *AI Response:*\n${result.BK9 || result.response || "No answer."}\n\n` +
-      `> ᴍᴀᴅᴇ ʙʏ GuruTech`
+      `> Made by GuruTech`
     );
+
   } catch (e) {
     console.error("docanalyze error:", e);
     reply(`❌ ${e.message || e}`);
