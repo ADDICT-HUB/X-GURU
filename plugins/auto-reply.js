@@ -1,23 +1,38 @@
 const fs = require('fs');
 const path = require('path');
-const config = require('../settings')
-const {malvin , commands} = require('../malvin')
+const config = require('../settings');
+const { malvin } = require('../malvin');
 
-//auto reply 
+// Auto-reply with message logging
 malvin({
-  on: "body"
-},    
-async (malvin, mek, m, { from, body, isOwner }) => {
-    const filePath = path.join(__dirname, '../autos/autoreply.json');
-    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    for (const text in data) {
-        if (body.toLowerCase() === text.toLowerCase()) {
-            
-            if (config.AUTO_REPLY === 'true') {
-                //if (isOwner) return;        
-                await m.reply(data[text])
-            
+    on: 'body' // triggers on every text message
+}, async (malvin, mek, m, { from, body, isOwner }) => {
+    try {
+        if (!body) return; // skip if message is empty
+
+        // Log every message
+        console.log(`[MESSAGE DETECTED] From: ${from}, Text: "${body}"`);
+
+        const filePath = path.join(__dirname, '../autos/autoreply.json');
+
+        if (!fs.existsSync(filePath)) return;
+
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const msgText = body.toLowerCase();
+
+        // Find matching auto-reply
+        for (const key in data) {
+            if (msgText === key.toLowerCase()) {
+                if (config.AUTO_REPLY === 'true') {
+                    // Optionally skip owner messages
+                    // if (isOwner) return;
+
+                    await m.reply(data[key]); // reply with stored response
+                }
+                break; // stop after first match
             }
         }
-    }                
+    } catch (e) {
+        console.error('Auto-reply error:', e);
+    }
 });
