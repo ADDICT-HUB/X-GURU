@@ -5,63 +5,82 @@ const path = require('path');
 
 malvin({
     pattern: "vcf",
-    desc: "Generate VCF contact file for all group members",
+    desc: "Export group members as VCF contacts",
     category: "tools",
     filename: __filename,
     groupOnly: true,
     usage: `${config.PREFIX}vcf`
-}, async (malvin, mek, m, { reply }) => {
+}, async (malvin, mek, m, { reply, isAdmin, isOwner }) => {
     try {
-        // Get group metadata
         const groupMetadata = await malvin.groupMetadata(m.chat);
         const participants = groupMetadata.participants || [];
-        
-        // Validate group size
+
         if (participants.length < 2) {
             return reply("❌ Group must have at least 2 members");
         }
-        if (participants.length > 1000) {
-            return reply("❌ Group is too large (max 1000 members)");
+
+        if (participants.length > 1024) {
+            return reply("❌ Group too large (max 1024 members)");
         }
 
-        // Generate VCF content
         let vcfContent = '';
-        participants.forEach(participant => {
-            const phoneNumber = participant.id.split('@')[0];
-            const displayName = participant.notify || `User_${phoneNumber}`;
-            
-            vcfContent += `BEGIN:VCARD\n` +
-                          `VERSION:3.0\n` +
-                          `FN:${displayName}\n` +
-                          `TEL;TYPE=CELL:+${phoneNumber}\n` +
-                          `NOTE:From ${groupMetadata.subject}\n` +
-                          `END:VCARD\n\n`;
+        let count = 0;
+
+        participants.forEach(p => {
+            const phone = p.id.split('@')[0];
+
+            // Best possible name resolution
+            const name =
+                p.notify ||
+                p.pushName ||
+                `User_${phone}`;
+
+            const role =
+                p.id === groupMetadata.owner ? 'Owner' :
+                p.admin ? 'Admin' :
+                'Member';
+
+            vcfContent +=
+`BEGIN:VCARD
+VERSION:3.0
+FN:${name}
+N:${name};;;;
+TEL;TYPE=CELL:+${phone}
+NOTE:Group: ${groupMetadata.subject} | Role: ${role}
+END:VCARD
+
+`;
+            count++;
         });
 
-        // Create temp file
-        const sanitizedGroupName = groupMetadata.subject.replace(/[^\w]/g, '_');
+        const safeGroupName = groupMetadata.subject.replace(/[^\w]/g, '_');
         const tempDir = path.join(__dirname, '../temp');
-        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-        
-        const vcfPath = path.join(tempDir, `${sanitizedGroupName}_${Date.now()}.vcf`);
-        fs.writeFileSync(vcfPath, vcfContent);
 
-        // Send VCF file
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+
+        const fileName = `${safeGroupName}_${count}_contacts.vcf`;
+        const filePath = path.join(tempDir, fileName);
+
+        fs.writeFileSync(filePath, vcfContent);
+
         await malvin.sendMessage(m.chat, {
-            document: { url: vcfPath },
+            document: fs.readFileSync(filePath),
             mimetype: 'text/vcard',
-            fileName: `${sanitizedGroupName}_contacts.vcf`,
-            caption: `📇 *Group Contacts*\n\n` +
-                     `• Group: ${groupMetadata.subject}\n` +
-                     `• Members: ${participants.length}\n` +
-                     `• Generated: ${new Date().toLocaleString()}`
+            fileName,
+            caption:
+`📇 *Group Contacts Export*
+
+👥 Group: ${groupMetadata.subject}
+📦 Total Contacts: ${count}
+🕒 Generated: ${new Date().toLocaleString()}
+
+⚠️ Names are based on WhatsApp profile / saved names`
         }, { quoted: m });
 
-        // Cleanup
-        fs.unlinkSync(vcfPath);
+        fs.unlinkSync(filePath);
 
-    } catch (error) {
-        console.error('VCF Error:', error);
-        reply("❌ Failed to generate VCF file");
+    } catch (err) {
+        console.error('VCF Error:', err);
+        reply("❌ Failed to export contacts");
     }
 });
