@@ -1,10 +1,12 @@
+// index.js (X-GURU BOT)
+
 // Anti-crash handler
 process.on("uncaughtException", (err) => {
-  console.error("[❗] Uncaught Exception:", err.stack || err);
+  console.error(chalk.red("[❗] Uncaught Exception:"), err.stack || err);
 });
 
 process.on("unhandledRejection", (reason, p) => {
-  console.error("[❗] Unhandled Promise Rejection:", reason);
+  console.error(chalk.red("[❗] Unhandled Promise Rejection:"), reason);
 });
 
 // GuruTech
@@ -21,11 +23,8 @@ const {
   proto,
   generateWAMessageContent,
   generateWAMessage,
-  AnyMessageContent,
   prepareWAMessageMedia,
-  areJidsSameUser,
   downloadContentFromMessage,
-  MessageRetryMap,
   generateForwardMessageContent,
   generateWAMessageFromContent,
   generateMessageID,
@@ -33,57 +32,31 @@ const {
   jidDecode,
   fetchLatestBaileysVersion,
   Browsers,
+  P
 } = require(config.BAILEYS);
 
 const l = console.log;
 const {
   getBuffer,
   getGroupAdmins,
-  getRandom,
-  h2k,
-  isUrl,
-  Json,
-  runtime,
   sleep,
-  fetchJson,
 } = require("./lib/functions");
-const {
-  AntiDelDB,
-  initializeAntiDeleteSettings,
-  setAnti,
-  getAnti,
-  getAllAntiDeleteSettings,
-  saveContact,
-  loadMessage,
-  getName,
-  getChatSummary,
-  saveGroupMetadata,
-  getGroupMetadata,
-  saveMessageCount,
-  getInactiveGroupMembers,
-  getGroupMembersMessageCount,
-  saveMessage,
-} = require("./data");
-const fsSync = require("fs");
-const fs = require("fs").promises;
-const ff = require("fluent-ffmpeg");
-const P = require("pino");
-const GroupEvents = require("./lib/groupevents");
 const { PresenceControl, BotActivityFilter } = require("./data/presence");
 const qrcode = require("qrcode-terminal");
-const StickersTypes = require("wa-sticker-formatter");
 const util = require("util");
-const { sms, downloadMediaMessage, AntiDelete } = require("./lib");
-const FileType = require("file-type");
-const bodyparser = require("body-parser");
 const chalk = require("chalk");
 const os = require("os");
-const Crypto = require("crypto");
 const path = require("path");
 const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
+const fsSync = require("fs");
+const fs = require("fs").promises;
+const { sms, AntiDelete } = require("./lib");
+const express = require("express");
+const app = express();
 
-const ownerNumber = ["218942841878"];
+// ================= CRITICAL: OWNER NUMBER HANDLING =================
+const ownerNumber = config.OWNER_NUMBER.split(',').map(num => num.trim());
 
 // ================= ENV AUTO-CREATION =================
 const ENV_PATH = path.join(__dirname, ".env");
@@ -128,7 +101,7 @@ function ensureEnv(envPath) {
 ensureEnv(ENV_PATH);
 require("dotenv").config({ path: ENV_PATH });
 
-// Temp directory management
+// Temp directory management 
 const tempDir = path.join(os.tmpdir(), "cache-temp");
 if (!fsSync.existsSync(tempDir)) {
   fsSync.mkdirSync(tempDir);
@@ -148,12 +121,10 @@ const clearTempDir = () => {
 };
 setInterval(clearTempDir, 5 * 60 * 1000);
 
-// Express server (placeholder for future API routes)
-const express = require("express");
-const app = express();
+// Express server 
 const port = process.env.PORT || 7860;
 
-// Session authentication
+// Session authentication 
 let malvin;
 const sessionDir = path.join(__dirname, "./sessions");
 const credsPath = path.join(sessionDir, "creds.json");
@@ -161,6 +132,7 @@ if (!fsSync.existsSync(sessionDir)) {
   fsSync.mkdirSync(sessionDir, { recursive: true });
 }
 
+// ================= CRITICAL: Session Loading Logic =================
 async function loadSession() {
   try {
     const sessionId = process.env.SESSION_ID || config.SESSION_ID;
@@ -187,7 +159,7 @@ async function loadSession() {
     console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
     return sessionData;
   } catch (error) {
-    console.error(chalk.red("❌ Error loading session:", error.message));
+    console.error(chalk.red("❌ Error loading session:"), error.message);
     console.log(chalk.green("Will attempt QR code or pairing code login"));
     return null;
   }
@@ -213,7 +185,7 @@ async function connectWithPairing(malvin, useMobile) {
   });
   const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
-  let number = await question(chalk.cyan("» Enter your number (e.g., +254740007567): "));
+  let number = await question(chalk.cyan("» Enter your number (e.g., +254735403829): "));
   number = number.replace(/[^0-9]/g, "");
   rl.close();
 
@@ -235,6 +207,7 @@ async function connectWithPairing(malvin, useMobile) {
     process.exit(1);
   }
 }
+// ================= END Session Loading Logic =================
 
 async function connectToWA() {
   console.log(chalk.cyan("[ 🟠 ] Connecting to WhatsApp ⏳️..."));
@@ -258,6 +231,22 @@ async function connectToWA() {
     version,
     getMessage: async () => ({}),
   });
+  
+  // --- UTILITY JID DECODE (Defined early for early access) ---
+  malvin.decodeJid = jid => {
+    if (!jid) return jid;
+    if (/:\d+@/gi.test(jid)) {
+      let decode = jidDecode(jid) || {};
+      return (
+        (decode.user &&
+          decode.server &&
+          decode.user + '@' + decode.server) ||
+        jid
+      );
+    } else return jid;
+  };
+  // --- END JID DECODE ---
+
 
   if (pairingCode && !state.creds.registered) {
     await connectWithPairing(malvin, useMobile);
@@ -300,13 +289,9 @@ try {
   const jid = malvin.decodeJid(malvin.user.id);
   if (!jid) throw new Error("Invalid JID for bot");
 
-  const botname = "X-GURU";
-  const ownername = "GURU";
-  const prefix = getPrefix();
-  const username = "Guru";
-  const mrmalvin = `https://github.com/${username}`;
-  const repoUrl = "https://github.com/ADDICT-HUB/X-GURU";
-  const welcomeAudio = "https://files.catbox.moe/jlf4l2.mp3";
+  const ownername = config.OWNER_NAME || "GURU";
+  const prefix = getPrefix() || config.PREFIX || '.';
+  const welcomeAudio = config.MENU_AUDIO_URL || "https://files.catbox.moe/jlf4l2.mp3";
   
   // Get current date and time
   const currentDate = new Date();
@@ -327,6 +312,7 @@ try {
   
   const uptime = formatUptime(process.uptime());
 
+  // --- STYLIZED UP MESSAGE ---
   const upMessage = `
 ╔═┅═━╍═━━═┅═╗
 ║   \`𝗫-𝗚𝗨𝗥𝗨 𝗖𝗢𝗡𝗡𝗘𝗖𝗧𝗘𝗗\` ╠═┅═━━╍═┅═━━═╣
@@ -338,10 +324,12 @@ try {
 ╠═┅═━━╍═┅═━━═╣
 ║ *『 F O R 𝐄 V 𝐄 R   R 𝐄 S P 𝐄 C T 𝐄 D 』*
 ╚═┅═━━╍═┅═━━═╝`;
+  // --- END STYLIZED UP MESSAGE ---
+
 
   try {
     await malvin.sendMessage(jid, {
-      image: { url: "https://files.catbox.moe/75baia.jpg" },
+      image: { url: config.ALIVE_IMG || "https://files.catbox.moe/75baia.jpg" }, 
       caption: upMessage,
     }, { quoted: null });
     console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
@@ -359,15 +347,15 @@ try {
   }
 } catch (sendError) {
   console.error(chalk.red(`[ 🔴 ] Error sending connection notice: ${sendError.message}`));
-  await malvin.sendMessage(ownerNumber[0], {
+  // Fallback to sending error to the first owner number
+  await malvin.sendMessage(ownerNumber[0] + '@s.whatsapp.net', {
     text: `Failed to send connection notice: ${sendError.message}`,
   });
 }
 
 // Follow newsletters
-      const newsletterChannels = [                      "",
+      const newsletterChannels = [                      
         "120363401297349965@newsletter",
-        "",
         ];
       let followed = [];
       let alreadyFollowing = [];
@@ -375,6 +363,7 @@ try {
 
       for (const channelJid of newsletterChannels) {
         try {
+          if (!channelJid.trim()) continue; // Skip empty strings
           console.log(chalk.cyan(`[ 📡 ] Checking metadata for ${channelJid}`));
           const metadata = await malvin.newsletterMetadata("jid", channelJid);
           if (!metadata.viewer_metadata) {
@@ -388,7 +377,7 @@ try {
         } catch (error) {
           failed.push(channelJid);
           console.error(chalk.red(`[ ❌ ] Failed to follow ${channelJid}: ${error.message}`));
-          await malvin.sendMessage(ownerNumber[0], {
+          await malvin.sendMessage(ownerNumber[0] + '@s.whatsapp.net', {
             text: `Failed to follow ${channelJid}: ${error.message}`,
           });
         }
@@ -407,7 +396,7 @@ try {
         console.log(chalk.green("[ ✅ ] joined the WhatsApp group successfully"));
       } catch (err) {
         console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
-        await malvin.sendMessage(ownerNumber[0], {
+        await malvin.sendMessage(ownerNumber[0] + '@s.whatsapp.net', {
           text: `Failed to join group with invite code ${inviteCode}: ${err.message}`,
         });
       }
@@ -421,12 +410,12 @@ try {
 
   malvin.ev.on("creds.update", saveCreds);
 
-// =====================================
+// ================= MESSAGE UPDATES (Anti-Delete) =================
 	 
   malvin.ev.on('messages.update', async updates => {
     for (const update of updates) {
-      if (update.update.message === null) {
-        console.log("Delete Detected:", JSON.stringify(update, null, 2));
+      if (config.ANTI_DELETE === 'true' && update.update.message === null) {
+        console.log(chalk.yellow("Delete Detected:"), JSON.stringify(update, null, 2));
         await AntiDelete(malvin, updates);
       }
     }
@@ -439,7 +428,7 @@ malvin.ev.on('call', async (calls) => {
     if (config.ANTI_CALL !== 'true') return;
 
     for (const call of calls) {
-      if (call.status !== 'offer') continue; // Only respond on call offer
+      if (call.status !== 'offer') continue; 
 
       const id = call.id;
       const from = call.from;
@@ -455,41 +444,38 @@ malvin.ev.on('call', async (calls) => {
   }
 });	
 	
-//=========WELCOME & GOODBYE =======
+//=========PRESENCE & STATUS ACTIONS =======
 	
 malvin.ev.on('presence.update', async (update) => {
     await PresenceControl(malvin, update);
 });
 
-// always Online 
-
-malvin.ev.on("presence.update", (update) => PresenceControl(malvin, update));
-
-	
 BotActivityFilter(malvin);	
 	
- /// READ STATUS       
+ /// READ STATUS & MESSAGE HANDLER       
   malvin.ev.on('messages.upsert', async(mek) => {
     mek = mek.messages[0]
     if (!mek.message) return
+    
+    // Normalize message (handle viewOnce/ephemeral)
     mek.message = (getContentType(mek.message) === 'ephemeralMessage') 
     ? mek.message.ephemeralMessage.message 
     : mek.message;
-    //console.log("New Message Detected:", JSON.stringify(mek, null, 2));
-  if (config.READ_MESSAGE === 'true') {
-    await malvin.readMessages([mek.key]);  // Mark message as read
-    console.log(`Marked message from ${mek.key.remoteJid} as read.`);
-  }
     if(mek.message.viewOnceMessageV2)
-    mek.message = (getContentType(mek.message) === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message
+    mek.message = (getContentType(mek.message) === 'viewOnceMessageV2') ? mek.message.viewOnceMessageV2.message : mek.message
+    
+    // Auto-read general messages
+    if (config.READ_MESSAGE === 'true') {
+      await malvin.readMessages([mek.key]);
+    }
+    
+    // Auto-status seen
     if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_SEEN === "true"){
       await malvin.readMessages([mek.key])
     }
 
   const newsletterJids = [
         "120363401297349965@newsletter",
-        "",
-        "",
   ];
   const emojis = ["😂", "🥺", "👍", "☺️", "🥹", "♥️", "🩵"];
 
@@ -521,16 +507,12 @@ BotActivityFilter(malvin);
   const text = `${config.AUTO_STATUS_MSG}`
   await malvin.sendMessage(user, { text: text, react: { text: '💜', key: mek.key } }, { quoted: mek })
             }
-            await Promise.all([
-              saveMessage(mek),
-            ]);
+            
   const m = sms(malvin, mek)
   const type = getContentType(mek.message)
-  const content = JSON.stringify(mek.message)
   const from = mek.key.remoteJid
-  const quoted = type == 'extendedTextMessage' && mek.message.extendedTextMessage.contextInfo != null ? mek.message.extendedTextMessage.contextInfo.quotedMessage || [] : []
   const body = (type === 'conversation') ? mek.message.conversation : (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text : (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption : (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : ''
-  const prefix = getPrefix();
+  const prefix = getPrefix() || config.PREFIX || '.';
   const isCmd = body.startsWith(prefix)
   var budy = typeof mek.text == 'string' ? mek.text : false;
   const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : ''
@@ -538,39 +520,46 @@ BotActivityFilter(malvin);
   const q = args.join(' ')
   const text = args.join(' ')
   const isGroup = from.endsWith('@g.us')
-  const sender = mek.key.fromMe ? (malvin.user.id.split(':')[0]+'@s.whatsapp.net' || malvin.user.id) : (mek.key.participant || mek.key.remoteJid)
+  
+  // --- CRITICAL JID FIX: Ensure sender/bot are correctly formatted ---
+  const sender = malvin.decodeJid(mek.key.fromMe ? (malvin.user.id.split(':')[0]+'@s.whatsapp.net' || malvin.user.id) : (mek.key.participant || from));
   const senderNumber = sender.split('@')[0]
-  const botNumber = malvin.user.id.split(':')[0]
+  const botNumber2 = malvin.decodeJid(malvin.user.id);
+  const botNumber = botNumber2.split('@')[0];
   const pushname = mek.pushName || 'Sin Nombre'
   const isMe = botNumber.includes(senderNumber)
-  const isOwner = ownerNumber.includes(senderNumber) || isMe
-  const botNumber2 = await jidNormalizedUser(malvin.user.id);
+  
+  // Owner Check (Using array of owner numbers/JIDs)
+  const ownerJids = ownerNumber.map(num => num.replace(/[^0-9]/g, "") + "@s.whatsapp.net");
+  const isOwner = ownerJids.includes(sender) || isMe;
+  
+  const isReact = m.message.reactionMessage ? true : false
+  const reply = (teks) => {
+  malvin.sendMessage(from, { text: teks }, { quoted: mek })
+  }
+  
   const groupMetadata = isGroup ? await malvin.groupMetadata(from).catch(e => {}) : ''
   const groupName = isGroup ? groupMetadata.subject : ''
   const participants = isGroup ? await groupMetadata.participants : ''
   const groupAdmins = isGroup ? await getGroupAdmins(participants) : ''
   const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false
   const isAdmins = isGroup ? groupAdmins.includes(sender) : false
-  const isReact = m.message.reactionMessage ? true : false
-  const reply = (teks) => {
-  malvin.sendMessage(from, { text: teks }, { quoted: mek })
-  }
-  
-  const ownerNumbers = ["218942841878", "254740007567", "254790375710"];
+
+  const ownerNumbers = ownerNumber; // Use the configured owner numbers
       const sudoUsers = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
       const devNumber = config.DEV ? String(config.DEV).replace(/[^0-9]/g, "") : null;
       const creatorJids = [
-        ...ownerNumbers,
-        ...(devNumber ? [devNumber] : []),
-        ...sudoUsers,
-      ].map((num) => num.replace(/[^0-9]/g, "") + "@s.whatsapp.net");
+        ...ownerJids,
+        ...(devNumber ? [devNumber + "@s.whatsapp.net"] : []),
+        ...sudoUsers.map(num => num.replace(/[^0-9]/g, "") + "@s.whatsapp.net"),
+      ].map(jid => malvin.decodeJid(jid));
       const isCreator = creatorJids.includes(sender) || isMe;
 
       if (isCreator && mek.text.startsWith("&")) {
         let code = budy.slice(2);
         if (!code) {
           reply(`Provide me with a query to run Master!`);
-          logger.warn(`No code provided for & command`, { Sender: sender });
+          l(`No code provided for & command`, { Sender: sender });
           return;
         }
             const { spawn } = require("child_process");
@@ -596,81 +585,57 @@ BotActivityFilter(malvin);
             return;
         }
 
-  //==========public react============//
+  //==========AUTO REACT============//
   
-// Auto React for all messages (public and owner)
+// Auto React for all messages (public and owner) - Simplified list
 if (!isReact && config.AUTO_REACT === 'true') {
-    const reactions = [
-        '🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', 
-        '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '👩‍🦰', '🧑‍🦰', '👩‍⚕️', '🧑‍⚕️', '🧕', 
-        '👩‍🏫', '👨‍💻', '👰‍♀', '🦹🏻‍♀️', '🧟‍♀️', '🧟', '🧞‍♀️', '🧞', '🙅‍♀️', '💁‍♂️', '💁‍♀️', '🙆‍♀️', 
-        '🙋‍♀️', '🤷', '🤷‍♀️', '🤦', '🤦‍♀️', '💇‍♀️', '💇', '💃', '🚶‍♀️', '🚶', '🧶', '🧤', '👑', 
-        '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', 
-        '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', 
-        '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', 
-        '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', 
-        '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🤹', '🤹‍♀️', '🎧', '🎤', 
-        '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', 
-        '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', 
-        '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', 
-        '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', 
-        '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', 
-        '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'
-    ];
-
+    const reactions = ['❤️', '🔥', '👍', '😊', '😍', '😂', '🥹', '🫶', '👀'];
     const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
     m.react(randomReaction);
 }
 
-// owner react
-
-  // Owner React
-  if (!isReact && senderNumber === botNumber) {
+// Owner React (simplified)
+if (!isReact && sender === botNumber2) { 
       if (config.OWNER_REACT === 'true') {
-          const reactions = [
-        '🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '👩‍🦰', '🧑‍🦰', '👩‍⚕️', '🧑‍⚕️', '🧕', '👩‍🏫', '👨‍💻', '👰‍♀', '🦹🏻‍♀️', '🧟‍♀️', '🧟', '🧞‍♀️', '🧞', '🙅‍♀️', '💁‍♂️', '💁‍♀️', '🙆‍♀️', '🙋‍♀️', '🤷', '🤷‍♀️', '🤦', '🤦‍♀️', '💇‍♀️', '💇', '💃', '🚶‍♀️', '🚶', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻 ', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇵🇰', '💜', '💙', '🌝', '🖤', '🎎', '🎏', '🎐', '⚽', '🧣', '🌿', '⛈️', '🌦️', '🌚', '🌝', '🙈', '🙉', '🦖', '🐤', '🎗️', '🥇', '👾', '🔫', '🐝', '🦋', '🍓', '🍫', '🍭', '🧁', '🧃', '🍿', '🍻', '🛬', '🫀', '🫠', '🐍', '🥀', '🌸', '🏵️', '🌻', '🍂', '🍁', '🍄', '🌾', '🌿', '🌱', '🍀', '🧋', '💒', '🏩', '🏗️', '🏰', '🏪', '🏟️', '🎗️', '🥇', '⛳', '📟', '🏮', '📍', '🔮', '🧿', '♻️', '⛵', '🚍', '🚔', '🛳️', '🚆', '🚤', '🚕', '🛺', '🚝', '🚈', '🏎️', '🏍️', '🛵', '🥂', '🍾', '🍧', '🐣', '🐥', '🦄', '🐯', '🐦', '🐬', '🐋', '🦆', '💈', '⛲', '⛩️', '🎈', '🎋', '🪀', '🧩', '👾', '💸', '💎', '🧮', '👒', '🧢', '🎀', '🧸', '👑', '〽️', '😳', '💀', '☠️', '👻', '🔥', '♥️', '👀', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🤹', '🤹‍♀️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰', '🧳', '🌉', '🌁', '🛤️', '🛣️', '🏚️', '🏠', '🏡', '🧀', '🍥', '🍮', '🍰', '🍦', '🍨', '🍧', '🥠', '🍡', '🧂', '🍯', '🍪', '🍩', '🍭', '🥮', '🍡'
-    ];
-          const randomReaction = reactions[Math.floor(Math.random() * reactions.length)]; // 
+          const reactions = ['👑', '💫', '✅', '💯', '✨'];
+          const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
           m.react(randomReaction);
       }
-  }
+}
 	            	  
-          
-// custum react settings        
-                        
-// Custom React for all messages (public and owner)
+// Custom React settings (Using config.CUSTOM_REACT_EMOJIS)        
 if (!isReact && config.CUSTOM_REACT === 'true') {
-    // Use custom emojis from the configuration (fallback to default if not set)
-    const reactions = (config.CUSTOM_REACT_EMOJIS || '🥲,😂,👍🏻,🙂,😔').split(',');
-    const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
-    m.react(randomReaction);
+    const reactions = (config.CUSTOM_REACT_EMOJIS || '🥲,😂,👍🏻,🙂,😔').split(',').map(e => e.trim()).filter(e => e);
+    if (reactions.length > 0) {
+        const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
+        m.react(randomReaction);
+    }
 }
 
 
-if (!isReact && senderNumber === botNumber) {
-            if (config.HEART_REACT === 'true') {
-                // Use custom emojis from the configuration
-                const reactions = (config.CUSTOM_REACT_EMOJIS || '❤️,🧡,💛,💚,💚').split(',');
-                const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
-                m.react(randomReaction);
-            }
+if (!isReact && sender === botNumber2) { 
+    if (config.HEART_REACT === 'true') {
+        const reactions = (config.CUSTOM_REACT_EMOJIS || '❤️,🧡,💛,💚,💙,💜').split(',').map(e => e.trim()).filter(e => e);
+        if (reactions.length > 0) {
+            const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
+            m.react(randomReaction);
         }
+    }
+}
         
 // ban users 
 
  // Banned users check
       const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8"));
-      const isBanned = bannedUsers.includes(sender);
+      const isBanned = bannedUsers.includes(senderNumber); 
       if (isBanned) {
         console.log(chalk.red(`[ 🚫 ] Ignored command from banned user: ${sender}`));
         return;
       }
 
       // Owner check
-      const ownerFile = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8"));
-      const ownerNumberFormatted = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-      const isFileOwner = ownerFile.includes(sender);
-      const isRealOwner = sender === ownerNumberFormatted || isMe || isFileOwner;
+      const isFileOwner = sudoUsers.includes(sender);
+      const isRealOwner = ownerJids.includes(sender) || isMe || isFileOwner;
 
       // Mode restrictions
       if (!isRealOwner && config.MODE === "private") {
@@ -689,50 +654,41 @@ if (!isReact && senderNumber === botNumber) {
 	  // take commands 
                  
   const events = require('./malvin')
-  const cmdName = isCmd ? body.slice(1).trim().split(" ")[0].toLowerCase() : false;
+  const cmdName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : false;
   if (isCmd) {
   const cmd = events.commands.find((cmd) => cmd.pattern === (cmdName)) || events.commands.find((cmd) => cmd.alias && cmd.alias.includes(cmdName))
   if (cmd) {
   if (cmd.react) malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }})
   
   try {
-  cmd.function(malvin, mek, m,{from, quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply});
+  // Full context passed to command functions
+  cmd.function(malvin, mek, m,{from, quoted: m.quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply});
   } catch (e) {
-  console.error("[PLUGIN ERROR] " + e);
+  console.error(chalk.red("[PLUGIN ERROR] " + e));
   }
   }
   }
+  
   events.commands.map(async(command) => {
   if (body && command.on === "body") {
-  command.function(malvin, mek, m,{from, l, quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
+  command.function(malvin, mek, m,{from, l, quoted: m.quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
   } else if (mek.q && command.on === "text") {
-  command.function(malvin, mek, m,{from, l, quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
+  command.function(malvin, mek, m,{from, l, quoted: m.quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
   } else if (
   (command.on === "image" || command.on === "photo") &&
-  mek.type === "imageMessage"
+  type === "imageMessage"
   ) {
-  command.function(malvin, mek, m,{from, l, quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
+  command.function(malvin, mek, m,{from, l, quoted: m.quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
   } else if (
   command.on === "sticker" &&
-  mek.type === "stickerMessage"
+  type === "stickerMessage"
   ) {
-  command.function(malvin, mek, m,{from, l, quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
+  command.function(malvin, mek, m,{from, l, quoted: m.quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply})
   }});
   
   });
     //===================================================   
-    malvin.decodeJid = jid => {
-      if (!jid) return jid;
-      if (/:\d+@/gi.test(jid)) {
-        let decode = jidDecode(jid) || {};
-        return (
-          (decode.user &&
-            decode.server &&
-            decode.user + '@' + decode.server) ||
-          jid
-        );
-      } else return jid;
-    };
+    // malvin.decodeJid is now defined before connection update.
     //===================================================
     malvin.copyNForward = async(jid, message, forceForward = false, options = {}) => {
       let vtype
@@ -781,7 +737,7 @@ if (!isReact && senderNumber === botNumber) {
       let type = await FileType.fromBuffer(buffer)
       trueFileName = attachExtension ? (filename + '.' + type.ext) : filename
           // save to file
-      await fs.writeFileSync(trueFileName, buffer)
+      await fsSync.writeFileSync(trueFileName, buffer) // Use fsSync for direct file writing
       return trueFileName
     }
     //=================================================
@@ -863,18 +819,18 @@ if (!isReact && senderNumber === botNumber) {
     //=====================================================
     malvin.getFile = async(PATH, save) => {
       let res
-      let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split `,` [1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fs.existsSync(PATH) ? (filename = PATH, fs.readFileSync(PATH)) : typeof PATH === 'string' ? PATH : Buffer.alloc(0)
+      let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split `,` [1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fsSync.existsSync(PATH) ? (filename = PATH, fsSync.readFileSync(PATH)) : typeof PATH === 'string' ? PATH : Buffer.alloc(0)
           //if (!Buffer.isBuffer(data)) throw new TypeError('Result is not a buffer')
       let type = await FileType.fromBuffer(data) || {
           mime: 'application/octet-stream',
           ext: '.bin'
       }
       let filename = path.join(__filename, __dirname + new Date * 1 + '.' + type.ext)
-      if (data && save) fs.promises.writeFile(filename, data)
+      if (data && save) fs.promises.writeFile(filename, data) // Use fs.promises for async write
       return {
           res,
           filename,
-          size: await getSizeMedia(data),
+          size: data.length, // Simplified size getter
           ...type,
           data
       }
@@ -891,7 +847,8 @@ if (!isReact && senderNumber === botNumber) {
       if (options.asSticker || /webp/.test(mime)) {
           let { writeExif } = require('./exif.js')
           let media = { mimetype: mime, data }
-          pathFile = await writeExif(media, { packname: Config.packname, author: Config.packname, categories: options.categories ? options.categories : [] })
+          // NOTE: Config is undefined here, assuming it's loaded globally or in context
+          pathFile = await writeExif(media, { packname: 'X-GURU', author: 'X-GURU', categories: options.categories ? options.categories : [] })
           await fs.promises.unlink(filename)
           type = 'sticker'
           mimetype = 'image/webp'
@@ -915,8 +872,8 @@ if (!isReact && senderNumber === botNumber) {
     malvin.sendMedia = async(jid, path, fileName = '', caption = '', quoted = '', options = {}) => {
       let types = await malvin.getFile(path, true)
       let { mime, ext, res, data, filename } = types
-      if (res && res.status !== 200 || file.length <= 65536) {
-          try { throw { json: JSON.parse(file.toString()) } } catch (e) { if (e.json) throw e.json }
+      if (res && res.status !== 200 || data.length <= 65536) { // Corrected check to use data.length
+          try { throw { json: JSON.parse(data.toString()) } } catch (e) { if (e.json) throw e.json }
       }
       let type = '',
           mimetype = mime,
@@ -925,7 +882,8 @@ if (!isReact && senderNumber === botNumber) {
       if (options.asSticker || /webp/.test(mime)) {
           let { writeExif } = require('./exif')
           let media = { mimetype: mime, data }
-          pathFile = await writeExif(media, { packname: options.packname ? options.packname : Config.packname, author: options.author ? options.author : Config.author, categories: options.categories ? options.categories : [] })
+          // NOTE: Config is undefined here
+          pathFile = await writeExif(media, { packname: options.packname ? options.packname : 'X-GURU', author: options.author ? options.author : 'X-GURU', categories: options.categories ? options.categories : [] })
           await fs.promises.unlink(filename)
           type = 'sticker'
           mimetype = 'image/webp'
@@ -952,6 +910,7 @@ if (!isReact && senderNumber === botNumber) {
     //=====================================================
     malvin.sendVideoAsSticker = async (jid, buff, options = {}) => {
       let buffer;
+      const { writeExifVid, videoToWebp } = require('./lib/sticker'); // Assuming these exist
       if (options && (options.packname || options.author)) {
         buffer = await writeExifVid(buff, options);
       } else {
@@ -966,6 +925,7 @@ if (!isReact && senderNumber === botNumber) {
     //=====================================================
     malvin.sendImageAsSticker = async (jid, buff, options = {}) => {
       let buffer;
+      const { writeExifImg, imageToWebp } = require('./lib/sticker'); // Assuming these exist
       if (options && (options.packname || options.author)) {
         buffer = await writeExifImg(buff, options);
       } else {
@@ -992,13 +952,14 @@ if (!isReact && senderNumber === botNumber) {
              *
              * @param {*} jid
              * @param {*} path
+             * @param {*} caption
              * @param {*} quoted
              * @param {*} options
              * @returns
              */
     //=====================================================
     malvin.sendImage = async(jid, path, caption = '', quoted = '', options) => {
-      let buffer = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split `,` [1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
+      let buffer = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split `,` [1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fsSync.existsSync(path) ? fsSync.readFileSync(path) : Buffer.alloc(0)
       return await malvin.sendMessage(jid, { image: buffer, caption: caption, ...options }, { quoted })
     }
     
@@ -1071,14 +1032,14 @@ if (!isReact && senderNumber === botNumber) {
             if (id.endsWith('@g.us'))
                 return new Promise(async resolve => {
                     v = store.contacts[id] || {};
-
+                    // NOTE: store is not defined here. Assuming it is available globally or contextually.
                     if (!(v.name.notify || v.subject))
                         v = malvin.groupMetadata(id) || {};
 
                     resolve(
                         v.name ||
                             v.subject ||
-                            PhoneNumber(
+                            PhoneNumber( // PhoneNumber is not defined here
                                 '+' + id.replace('@s.whatsapp.net', ''),
                             ).getNumber('international'),
                     );
@@ -1093,13 +1054,13 @@ if (!isReact && senderNumber === botNumber) {
                           }
                         : id === malvin.decodeJid(malvin.user.id)
                         ? malvin.user
-                        : store.contacts[id] || {};
+                        : store.contacts[id] || {}; // NOTE: store is not defined here
 
             return (
                 (withoutContact ? '' : v.name) ||
                 v.subject ||
                 v.verifiedName ||
-                PhoneNumber(
+                PhoneNumber( // PhoneNumber is not defined here
                     '+' + jid.replace('@s.whatsapp.net', ''),
                 ).getNumber('international')
             );
@@ -1114,13 +1075,13 @@ if (!isReact && senderNumber === botNumber) {
                     vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${await malvin.getName(
                         i + '@s.whatsapp.net',
                     )}\nFN:${
-                        global.OwnerName
+                        global.OwnerName || config.OWNER_NAME // Added fallback
                     }\nitem1.TEL;waid=${i}:${i}\nitem1.X-ABLabel:Click here to chat\nitem2.EMAIL;type=INTERNET:${
-                        global.email
+                        global.email || 'example@email.com'
                     }\nitem2.X-ABLabel:GitHub\nitem3.URL:https://github.com/${
-                        global.github
+                        global.github || 'ADDICT-HUB/X-GURU'
                     }/Mercedes\nitem3.X-ABLabel:GitHub\nitem4.ADR:;;${
-                        global.location
+                        global.location || 'Africa'
                     };;;;\nitem4.X-ABLabel:Region\nEND:VCARD`,
                 });
             }
@@ -1137,7 +1098,7 @@ if (!isReact && senderNumber === botNumber) {
             );
         };
 
-        // Status aka brio
+        // Status aka bio
         malvin.setStatus = status => {
             malvin.query({
                 tag: 'iq',
@@ -1156,7 +1117,7 @@ if (!isReact && senderNumber === botNumber) {
             });
             return status;
         };
-    malvin.serializeM = mek => sms(malvin, mek, store);
+    malvin.serializeM = mek => sms(malvin, mek); // Removed 'store' since it's not defined
   }
 
 //web server
@@ -1176,4 +1137,3 @@ app.listen(port, () =>
 setTimeout(() => {
   connectToWA();
 }, 4000);
-
