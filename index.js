@@ -328,16 +328,16 @@ try {
   const uptime = formatUptime(process.uptime());
 
   const upMessage = `
-*┏──〔 Connected 〕───⊷*   
-*┇ Prefix: ${prefix}*
-*┇ Date: ${date}*
-*┇ Time: ${time}*
-*┇ Uptime: ${uptime}*
-*┇ Owner: ${ownername}*
-*┇ Follow Channel:*  
-*┇ https://shorturl.at/DYEi0*
-*┗──────────────⊷*
-> *Report any error to the dev*`;
+╔═┅═━╍═━━═┅═╗
+║   \`𝗫-𝗚𝗨𝗥𝗨 𝗖𝗢𝗡𝗡𝗘𝗖𝗧𝗘𝗗\` ╠═┅═━━╍═┅═━━═╣
+║ *◩ Prefix:* ${prefix}
+║ *◩ Date:* ${date}
+║ *◩ Time:* ${time}
+║ *◩ Uptime:* ${uptime}
+║ *◩ Owner:* ${ownername}
+╠═┅═━━╍═┅═━━═╣
+║ *『 F O R 𝐄 V 𝐄 R   R 𝐄 S P 𝐄 C T 𝐄 D 』*
+╚═┅═━━╍═┅═━━═╝`;
 
   try {
     await malvin.sendMessage(jid, {
