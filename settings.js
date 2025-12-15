@@ -1,32 +1,31 @@
 const fs = require('fs');
 const path = require('path');
 const { getConfig } = require('./lib/configdb');
-const settings = require('./settingss');
+const settings = require('./settingss'); // Assuming this refers to an external local settings file
 
+// Load environment variables from config.env if it exists
 if (fs.existsSync(path.resolve('config.env'))) {
   require('dotenv').config({ path: path.resolve('config.env') });
 }
 
-// Helper to convert "true"/"false" strings to actual boolean
+// Helper to convert "true"/"false" strings to actual boolean (optional, but good practice)
 function convertToBool(text, trueValue = 'true') {
   return text === trueValue;
 }
 
-// Ensure SESSION_ID is provided
-if (!process.env.SESSION_ID && !settings.SESSION_ID) {
-  console.error("❌ SESSION_ID missing! Please set a valid Base64 session in your environment.");
-  process.exit(1);
-}
+// CRITICAL FIX: Removed the crash check for SESSION_ID here.
+// The main index.js script will now handle session loading, including the interactive prompt.
 
 module.exports = {
   // ===== BOT CORE SETTINGS =====
-  SESSION_ID: settings.SESSION_ID || process.env.SESSION_ID, // No default fallback
-  PREFIX: getConfig("PREFIX") || settings.PREFIX || ".", // Command prefix
+  SESSION_ID: settings.SESSION_ID || process.env.SESSION_ID, // No default fallback, index.js handles missing
+  PREFIX: getConfig("PREFIX") || settings.PREFIX || ".", // Command prefix (used as the default prefix)
   CHATBOT: getConfig("CHATBOT") || "on",
   BOT_NAME: getConfig("BOT_NAME") || process.env.BOT_NAME || "X-GURU",
   MODE: getConfig("MODE") || process.env.MODE || "private",
   REPO: process.env.REPO || "https://github.com/ADDICT-HUB/X-GURU",
-  PAIRING_CODE: process.env.PARING_CODE || 'true',
+  // FIX: Corrected typo from PARING_CODE to PAIRING_CODE
+  PAIRING_CODE: process.env.PAIRING_CODE || 'true', 
   BAILEYS: process.env.BAILEYS || "@whiskeysockets/baileys",
 
   // ===== OWNER & DEVELOPER SETTINGS =====
