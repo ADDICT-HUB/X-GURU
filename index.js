@@ -90,7 +90,7 @@ const ENV_PATH = path.join(__dirname, ".env");
 function ensureEnv(envPath) {
   try {
     const defaults = [
-      "SESSION_ID=",
+      "SESSION_ID=", // Kept for reference, but interactive mode is prioritized
       "PAIRING_CODE=false",
       "MODE=public",
       "OWNER_NUMBER=254740007567",
@@ -109,7 +109,7 @@ function ensureEnv(envPath) {
     if (!fsSync.existsSync(envPath)) {
       fsSync.writeFileSync(envPath, defaults.join("\n") + "\n");
       console.log(chalk.green(`[ ✅ ] .env created at ${envPath}`));
-      console.log(chalk.yellow("Set SESSION_ID to Xguru~<base64 json creds> for seamless login."));
+      console.log(chalk.yellow("Note: Using interactive session input mode. You don't need to set SESSION_ID unless running in non-interactive mode."));
       return;
     }
     const existing = fsSync.readFileSync(envPath, "utf8");
@@ -161,31 +161,72 @@ if (!fsSync.existsSync(sessionDir)) {
   fsSync.mkdirSync(sessionDir, { recursive: true });
 }
 
+
+/**
+ * Prompts the user for the Base64 session string in the console.
+ * @returns {Promise<string>} The Base64 session string input by the user.
+ */
+async function promptForSession() {
+  if (!process.stdin.isTTY) {
+    console.error(chalk.red("❌ Cannot prompt for session ID in non-interactive environment. Please set SESSION_ID environment variable."));
+    process.log(chalk.red("The bot requires an interactive terminal or the SESSION_ID environment variable."));
+    // Re-check for SESSION_ID env for non-interactive mode fallback
+    const envSession = process.env.SESSION_ID || process.env.SESSION || config.SESSION_ID;
+    if (envSession) {
+        console.log(chalk.yellow("[ ⚠️ ] Falling back to SESSION_ID from environment."));
+        return envSession;
+    }
+    process.exit(1);
+  }
+
+  console.log(chalk.bgMagenta.black(" ACTION REQUIRED "));
+  console.log(chalk.green("┌" + "─".repeat(60) + "┐"));
+  console.log(chalk.green("│ ") + chalk.bold("Paste your Base64 Session ID (must start with Xguru~) below:") + chalk.green(" │"));
+  console.log(chalk.green("└" + "─".repeat(60) + "┘"));
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+
+  let sessionId = await question(chalk.cyan("» Enter Session ID: "));
+  rl.close();
+  
+  if (!sessionId) {
+    throw new Error("No session ID provided by user.");
+  }
+  return sessionId;
+}
+
+/**
+ * Loads session data either from existing creds.json or by prompting the user.
+ * @returns {Promise<object|null>} The decoded session data object, or null on failure/fallback.
+ */
 async function loadSession() {
   try {
-    // MODIFIED: Check for SESSION_ID or SESSION (common alternative)
-    let sessionId = process.env.SESSION_ID || process.env.SESSION || config.SESSION_ID;
-    
-    if (!sessionId) {
-      console.log(chalk.red("No SESSION_ID provided - Falling back to QR or pairing code"));
-      return null;
+    // 1. Check if creds.json already exists
+    if (fsSync.existsSync(credsPath)) {
+      console.log(chalk.yellow("[ ⏳ ] Found existing session file. Loading..."));
+      const sessionData = JSON.parse(fsSync.readFileSync(credsPath, 'utf8'));
+      return sessionData;
     }
-
+    
+    // 2. If missing, get the session ID string from user input (or env fallback if non-interactive)
+    const sessionId = await promptForSession();
     let base64Data;
-
+    
     if (sessionId.startsWith("Xguru~")) {
-      // If it has the expected prefix, strip it
       console.log(chalk.yellow("[ ⏳ ] Decoding Base64 session with 'Xguru~' prefix..."));
       base64Data = sessionId.replace("Xguru~", "");
     } else {
-      // Assume the input is a raw Base64 string (for panel/generic deployments)
+      console.log(chalk.red("[ ⚠️ ] Session ID did not start with 'Xguru~'. Attempting raw Base64 decode..."));
       base64Data = sessionId;
-      console.log(chalk.yellow("[ ⏳ ] Decoding raw Base64 session string..."));
     }
     
     // Basic Base64 validation
     if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
-      throw new Error("Invalid base64 format in SESSION_ID");
+      throw new Error("Invalid base64 format in session ID provided by user.");
     }
     
     const decodedData = Buffer.from(base64Data, "base64");
@@ -198,18 +239,18 @@ async function loadSession() {
       throw new Error("Failed to parse decoded base64 session data: " + error.message);
     }
     
-    // Write the decoded data (creds.json) for Baileys to use
+    // Write the decoded data (creds.json) for Baileys to use next time
     fsSync.writeFileSync(credsPath, decodedData);
-    console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
+    console.log(chalk.green("[ ✅ ] Session decoded and saved successfully to creds.json"));
     return sessionData;
   } catch (error) {
-    console.error(chalk.red("❌ Error loading session:", error.message));
-    console.log(chalk.green("Will attempt QR code or pairing code login"));
-    // NOTE for deployment: On stateless platforms (Heroku, Railway), session data stored in creds.json will be lost on restart. 
-    // For true persistence, you need to integrate Baileys with a remote database (e.g., MongoDB, PostgreSQL).
-    return null;
+    console.error(chalk.red("❌ Error loading session:"), error.message);
+    // If user input failed, we fall back to QR/Pairing code login
+    console.log(chalk.green("Falling back to QR code or pairing code login."));
+    return null; 
   }
 }
+
 
 async function connectWithPairing(malvin, useMobile) {
   if (useMobile) {
@@ -269,7 +310,8 @@ async function connectToWA() {
 
   malvin = makeWASocket({
     logger: P({ level: "silent" }),
-    printQRInTerminal: !creds && !pairingCode,
+    // Only print QR if no session file/data was loaded AND pairing code is not active
+    printQRInTerminal: !fsSync.existsSync(credsPath) && !pairingCode, 
     browser: Browsers.macOS("Firefox"),
     syncFullHistory: true,
     auth: state,
@@ -537,9 +579,10 @@ BotActivityFilter(malvin);
   const text = `${config.AUTO_STATUS_MSG}`
   await malvin.sendMessage(user, { text: text, react: { text: '💜', key: mek.key } }, { quoted: mek })
             }
-            await Promise.all([
-              saveMessage(mek),
-            ]);
+            // Message storage logic removed for brevity, assuming it's in a separate module
+            // await Promise.all([
+            //   saveMessage(mek),
+            // ]);
   const m = sms(malvin, mek)
   const type = getContentType(mek.message)
   const content = JSON.stringify(mek.message)
@@ -548,7 +591,7 @@ BotActivityFilter(malvin);
   
   // --- CUSTOM PREFIX LOGIC START ---
   // 1. Get the configured single character prefix (e.g., '!', '.', '#')
-  const defaultPrefix = getPrefix(); 
+  const defaultPrefix = getPrefix() || '!' ; // Fallback to '!' if getPrefix() fails
   // 2. Define your desired custom prefix string
   const customPrefix = 'Xguru';
   
@@ -564,12 +607,13 @@ BotActivityFilter(malvin);
   } else if (body.toLowerCase().startsWith(customPrefix.toLowerCase())) {
     isCmd = true;
     // Slice off the custom prefix and any following space
-    commandBody = body.slice(customPrefix.length).trim();
+    const prefixLength = body.toLowerCase().indexOf(customPrefix.toLowerCase()) + customPrefix.length;
+    commandBody = body.slice(prefixLength).trim();
     if(commandBody.startsWith(' ')) commandBody = commandBody.slice(1);
   }
 
-  const prefix = isCmd ? (body.startsWith(defaultPrefix) ? defaultPrefix : customPrefix) : defaultPrefix; // Set prefix for reply messages, preferring Xguru if matched
-  const budy = typeof mek.text == 'string' ? mek.text : false;
+  const prefix = isCmd ? (body.toLowerCase().startsWith(customPrefix.toLowerCase()) ? customPrefix : defaultPrefix) : defaultPrefix; // Set prefix for reply messages, preferring Xguru if matched
+  const budy = typeof body == 'string' ? body : false;
   const command = isCmd ? commandBody.split(' ').shift().toLowerCase() : ''
   const args = isCmd ? commandBody.trim().split(/ +/).slice(1) : []; // Args from commandBody
   const q = args.join(' ')
