@@ -1,31 +1,32 @@
 const fs = require('fs');
 const path = require('path');
 const { getConfig } = require('./lib/configdb');
-const settings = require('./settingss'); // Assuming this refers to an external local settings file
+const settings = require('./settingss');
 
-// Load environment variables from config.env if it exists
 if (fs.existsSync(path.resolve('config.env'))) {
   require('dotenv').config({ path: path.resolve('config.env') });
 }
 
-// Helper to convert "true"/"false" strings to actual boolean (optional, but good practice)
+// Helper to convert "true"/"false" strings to actual boolean
 function convertToBool(text, trueValue = 'true') {
   return text === trueValue;
 }
 
-// CRITICAL FIX: Removed the crash check for SESSION_ID here.
-// The main index.js script will now handle session loading, including the interactive prompt.
+// Ensure SESSION_ID is provided
+if (!process.env.SESSION_ID && !settings.SESSION_ID) {
+  console.error("❌ SESSION_ID missing! Please set a valid Base64 session in your environment.");
+  process.exit(1);
+}
 
 module.exports = {
   // ===== BOT CORE SETTINGS =====
-  SESSION_ID: settings.SESSION_ID || process.env.SESSION_ID, // No default fallback, index.js handles missing
-  PREFIX: getConfig("PREFIX") || settings.PREFIX || ".", // Command prefix (used as the default prefix)
+  SESSION_ID: settings.SESSION_ID || process.env.SESSION_ID, // No default fallback
+  PREFIX: getConfig("PREFIX") || settings.PREFIX || ".", // Command prefix
   CHATBOT: getConfig("CHATBOT") || "on",
   BOT_NAME: getConfig("BOT_NAME") || process.env.BOT_NAME || "X-GURU",
   MODE: getConfig("MODE") || process.env.MODE || "private",
   REPO: process.env.REPO || "https://github.com/ADDICT-HUB/X-GURU",
-  // FIX: Corrected typo from PARING_CODE to PAIRING_CODE
-  PAIRING_CODE: process.env.PAIRING_CODE || 'true', 
+  PAIRING_CODE: process.env.PARING_CODE || 'true',
   BAILEYS: process.env.BAILEYS || "@whiskeysockets/baileys",
 
   // ===== OWNER & DEVELOPER SETTINGS =====
@@ -44,7 +45,7 @@ module.exports = {
   AUTO_STATUS_REPLY: getConfig("AUTO_STATUS_REPLY") || process.env.AUTO_STATUS_REPLY || "false",
   AUTO_STATUS_MSG: process.env.AUTO_STATUS_MSG || "*Just seen ur status 😆 🤖*",
   READ_MESSAGE: getConfig("READ_MESSAGE") || process.env.READ_MESSAGE || "false",
-  REJECT_MSG: process.env.REJECT_MSG || "*📵 Calls are not allowed on this number owner out of data 🫷🚫*",
+  REJECT_MSG: process.env.REJECT_MSG || "*📵 Calls are not allowed on this number unless you have permission. 🚫*",
   ALIVE_IMG: getConfig("ALIVE_IMG") || process.env.ALIVE_IMG || "https://files.catbox.moe/75baia.jpg",
   LIVE_MSG: process.env.LIVE_MSG || "> ʙᴏᴛ ɪs sᴘᴀʀᴋɪɴɢ ᴀᴄᴛɪᴠᴇ ᴀɴᴅ ᴀʟɪᴠᴇ\n\n\n> ɢɪᴛʜᴜʙ :* github.com/ADDICT-HUB/X-GURU",
 
@@ -57,7 +58,7 @@ module.exports = {
   DELETE_LINKS: getConfig("DELETE_LINKS") || process.env.DELETE_LINKS || "false",
   ANTI_DEL_PATH: process.env.ANTI_DEL_PATH || "inbox",
   ANTI_BOT: getConfig("ANTI_BOT") || process.env.ANTI_BOT || "true",
-  PM_BLOCKER: getConfig("PM_BLOCKER") || process.env.PM_BLOCKER || "false",
+  PM_BLOCKER: getConfig("PM_BLOCKER") || process.env.PM_BLOCKER || "true",
 
   // ===== BOT BEHAVIOR & APPEARANCE =====
   DESCRIPTION: process.env.DESCRIPTION || "*ᴍᴀᴅᴇ ʙʏ ɢᴜʀᴜᴛᴇᴄʜ*",
@@ -72,22 +73,21 @@ module.exports = {
   version: process.env.version || "1.5.0",
   TIMEZONE: settings.TIMEZONE || process.env.TIMEZONE || "Africa/Harare",
 
-// ===== CATEGORY-SPECIFIC IMAGE URLs =====
-MENU_IMAGES: {
-  '1': process.env.DOWNLOAD_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '2': process.env.GROUP_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '3': process.env.FUN_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '4': process.env.OWNER_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '5': process.env.AI_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '6': process.env.ANIME_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '7': process.env.CONVERT_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '8': process.env.OTHER_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '9': process.env.REACTION_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '10': process.env.MAIN_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '11': process.env.LOGO_MAKER_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '12': process.env.SETTINGS_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '13': process.env.AUDIO_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg",
-  '14': process.env.PRIVACY_MENU_IMAGE || "https://files.catbox.moe/75baia.jpg"
-},
-
+  // ===== CATEGORY-SPECIFIC IMAGE URLs =====
+  MENU_IMAGES: {
+    '1': process.env.DOWNLOAD_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
+    '2': process.env.GROUP_MENU_IMAGE || "https://url.bwmxmd.online/Adams.xm472dqv.jpeg",
+    '3': process.env.FUN_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
+    '4': process.env.OWNER_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
+    '5': process.env.AI_MENU_IMAGE || "https://url.bwmxmd.online/Adams.zjrmnw18.jpeg",
+    '6': process.env.ANIME_MENU_IMAGE || "https://url.bwmxmd.online/Adams.h0gop5c7.jpeg",
+    '7': process.env.CONVERT_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
+    '8': process.env.OTHER_MENU_IMAGE || "https://url.bwmxmd.online/Adams.zjrmnw18.jpeg",
+    '9': process.env.REACTION_MENU_IMAGE || "https://url.bwmxmd.online/Adams.xm472dqv.jpeg",
+    '10': process.env.MAIN_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
+    '11': process.env.LOGO_MAKER_MENU_IMAGE || "https://url.bwmxmd.online/Adams.h0gop5c7.jpeg",
+    '12': process.env.SETTINGS_MENU_IMAGE || "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
+    '13': process.env.AUDIO_MENU_IMAGE || "https://url.bwmxmd.online/Adams.h0gop5c7.jpeg",
+    '14': process.env.PRIVACY_MENU_IMAGE || "https://url.bwmxmd.online/Adams.xm472dqv.jpeg"
+  }
 };

@@ -80,7 +80,7 @@ const chalk = require("chalk");
 const os = require("os");
 const Crypto = require("crypto");
 const path = require("path");
-const { getPrefix } = require("./lib/prefix"); // Assuming getPrefix is still used for the main single prefix
+const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
 const ownerNumber = ["218942841878"];
@@ -90,7 +90,7 @@ const ENV_PATH = path.join(__dirname, ".env");
 function ensureEnv(envPath) {
   try {
     const defaults = [
-      "SESSION_ID=", // Kept for reference, but interactive mode is prioritized
+      "SESSION_ID=",
       "PAIRING_CODE=false",
       "MODE=public",
       "OWNER_NUMBER=254740007567",
@@ -109,7 +109,7 @@ function ensureEnv(envPath) {
     if (!fsSync.existsSync(envPath)) {
       fsSync.writeFileSync(envPath, defaults.join("\n") + "\n");
       console.log(chalk.green(`[ ✅ ] .env created at ${envPath}`));
-      console.log(chalk.yellow("Note: Using interactive session input mode. You don't need to set SESSION_ID unless running in non-interactive mode."));
+      console.log(chalk.yellow("Set SESSION_ID to Xguru~<base64 json creds> for seamless login."));
       return;
     }
     const existing = fsSync.readFileSync(envPath, "utf8");
@@ -161,96 +161,37 @@ if (!fsSync.existsSync(sessionDir)) {
   fsSync.mkdirSync(sessionDir, { recursive: true });
 }
 
-
-/**
- * Prompts the user for the Base64 session string in the console.
- * @returns {Promise<string>} The Base64 session string input by the user.
- */
-async function promptForSession() {
-  if (!process.stdin.isTTY) {
-    console.error(chalk.red("❌ Cannot prompt for session ID in non-interactive environment. Please set SESSION_ID environment variable."));
-    process.log(chalk.red("The bot requires an interactive terminal or the SESSION_ID environment variable."));
-    // Re-check for SESSION_ID env for non-interactive mode fallback
-    const envSession = process.env.SESSION_ID || process.env.SESSION || config.SESSION_ID;
-    if (envSession) {
-        console.log(chalk.yellow("[ ⚠️ ] Falling back to SESSION_ID from environment."));
-        return envSession;
-    }
-    process.exit(1);
-  }
-
-  console.log(chalk.bgMagenta.black(" ACTION REQUIRED "));
-  console.log(chalk.green("┌" + "─".repeat(60) + "┐"));
-  console.log(chalk.green("│ ") + chalk.bold("Paste your Base64 Session ID (must start with Xguru~) below:") + chalk.green(" │"));
-  console.log(chalk.green("└" + "─".repeat(60) + "┘"));
-
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  const question = (text) => new Promise((resolve) => rl.question(text, resolve));
-
-  let sessionId = await question(chalk.cyan("» Enter Session ID: "));
-  rl.close();
-  
-  if (!sessionId) {
-    throw new Error("No session ID provided by user.");
-  }
-  return sessionId;
-}
-
-/**
- * Loads session data either from existing creds.json or by prompting the user.
- * @returns {Promise<object|null>} The decoded session data object, or null on failure/fallback.
- */
 async function loadSession() {
   try {
-    // 1. Check if creds.json already exists
-    if (fsSync.existsSync(credsPath)) {
-      console.log(chalk.yellow("[ ⏳ ] Found existing session file. Loading..."));
-      const sessionData = JSON.parse(fsSync.readFileSync(credsPath, 'utf8'));
-      return sessionData;
+    const sessionId = process.env.SESSION_ID || config.SESSION_ID;
+    if (!sessionId) {
+      console.log(chalk.red("No SESSION_ID provided - Falling back to QR or pairing code"));
+      return null;
     }
-    
-    // 2. If missing, get the session ID string from user input (or env fallback if non-interactive)
-    const sessionId = await promptForSession();
-    let base64Data;
-    
-    if (sessionId.startsWith("Xguru~")) {
-      console.log(chalk.yellow("[ ⏳ ] Decoding Base64 session with 'Xguru~' prefix..."));
-      base64Data = sessionId.replace("Xguru~", "");
-    } else {
-      console.log(chalk.red("[ ⚠️ ] Session ID did not start with 'Xguru~'. Attempting raw Base64 decode..."));
-      base64Data = sessionId;
+    if (!sessionId.startsWith("Xguru~")) {
+      throw new Error("Invalid SESSION_ID prefix. Expected 'Xguru~' for base64 sessions.");
     }
-    
-    // Basic Base64 validation
+    console.log(chalk.yellow("[ ⏳ ] Decoding base64 session..."));
+    const base64Data = sessionId.replace("Xguru~", "");
     if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
-      throw new Error("Invalid base64 format in session ID provided by user.");
+      throw new Error("Invalid base64 format in SESSION_ID");
     }
-    
     const decodedData = Buffer.from(base64Data, "base64");
     let sessionData;
-    
     try {
-      // Attempt to parse the decoded JSON data
       sessionData = JSON.parse(decodedData.toString("utf-8"));
     } catch (error) {
       throw new Error("Failed to parse decoded base64 session data: " + error.message);
     }
-    
-    // Write the decoded data (creds.json) for Baileys to use next time
     fsSync.writeFileSync(credsPath, decodedData);
-    console.log(chalk.green("[ ✅ ] Session decoded and saved successfully to creds.json"));
+    console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
     return sessionData;
   } catch (error) {
-    console.error(chalk.red("❌ Error loading session:"), error.message);
-    // If user input failed, we fall back to QR/Pairing code login
-    console.log(chalk.green("Falling back to QR code or pairing code login."));
-    return null; 
+    console.error(chalk.red("❌ Error loading session:", error.message));
+    console.log(chalk.green("Will attempt QR code or pairing code login"));
+    return null;
   }
 }
-
 
 async function connectWithPairing(malvin, useMobile) {
   if (useMobile) {
@@ -310,8 +251,7 @@ async function connectToWA() {
 
   malvin = makeWASocket({
     logger: P({ level: "silent" }),
-    // Only print QR if no session file/data was loaded AND pairing code is not active
-    printQRInTerminal: !fsSync.existsSync(credsPath) && !pairingCode, 
+    printQRInTerminal: !creds && !pairingCode,
     browser: Browsers.macOS("Firefox"),
     syncFullHistory: true,
     auth: state,
@@ -388,12 +328,14 @@ try {
   const uptime = formatUptime(process.uptime());
 
   const upMessage = `
-*┏──〔 Connected 〕───⊷* *┇ Prefix: ${prefix}*
+*┏──〔 Connected 〕───⊷*   
+*┇ Prefix: ${prefix}*
 *┇ Date: ${date}*
 *┇ Time: ${time}*
 *┇ Uptime: ${uptime}*
 *┇ Owner: ${ownername}*
-*┇ Follow Channel:* *┇ https://shorturl.at/DYEi0*
+*┇ Follow Channel:*  
+*┇ https://shorturl.at/DYEi0*
 *┗──────────────⊷*
 > *Report any error to the dev*`;
 
@@ -579,47 +521,22 @@ BotActivityFilter(malvin);
   const text = `${config.AUTO_STATUS_MSG}`
   await malvin.sendMessage(user, { text: text, react: { text: '💜', key: mek.key } }, { quoted: mek })
             }
-            // Message storage logic removed for brevity, assuming it's in a separate module
-            // await Promise.all([
-            //   saveMessage(mek),
-            // ]);
+            await Promise.all([
+              saveMessage(mek),
+            ]);
   const m = sms(malvin, mek)
   const type = getContentType(mek.message)
   const content = JSON.stringify(mek.message)
   const from = mek.key.remoteJid
   const quoted = type == 'extendedTextMessage' && mek.message.extendedTextMessage.contextInfo != null ? mek.message.extendedTextMessage.contextInfo.quotedMessage || [] : []
-  
-  // --- CUSTOM PREFIX LOGIC START ---
-  // 1. Get the configured single character prefix (e.g., '!', '.', '#')
-  const defaultPrefix = getPrefix() || '!' ; // Fallback to '!' if getPrefix() fails
-  // 2. Define your desired custom prefix string
-  const customPrefix = 'Xguru';
-  
   const body = (type === 'conversation') ? mek.message.conversation : (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text : (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption : (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : ''
-  
-  // Check if the body starts with EITHER the defaultPrefix OR the customPrefix (case-insensitive)
-  let isCmd = false;
-  let commandBody = '';
-
-  if (body.startsWith(defaultPrefix)) {
-    isCmd = true;
-    commandBody = body.slice(defaultPrefix.length).trim();
-  } else if (body.toLowerCase().startsWith(customPrefix.toLowerCase())) {
-    isCmd = true;
-    // Slice off the custom prefix and any following space
-    const prefixLength = body.toLowerCase().indexOf(customPrefix.toLowerCase()) + customPrefix.length;
-    commandBody = body.slice(prefixLength).trim();
-    if(commandBody.startsWith(' ')) commandBody = commandBody.slice(1);
-  }
-
-  const prefix = isCmd ? (body.toLowerCase().startsWith(customPrefix.toLowerCase()) ? customPrefix : defaultPrefix) : defaultPrefix; // Set prefix for reply messages, preferring Xguru if matched
-  const budy = typeof body == 'string' ? body : false;
-  const command = isCmd ? commandBody.split(' ').shift().toLowerCase() : ''
-  const args = isCmd ? commandBody.trim().split(/ +/).slice(1) : []; // Args from commandBody
+  const prefix = getPrefix();
+  const isCmd = body.startsWith(prefix)
+  var budy = typeof mek.text == 'string' ? mek.text : false;
+  const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : ''
+  const args = body.trim().split(/ +/).slice(1)
   const q = args.join(' ')
   const text = args.join(' ')
-  // --- CUSTOM PREFIX LOGIC END ---
-
   const isGroup = from.endsWith('@g.us')
   const sender = mek.key.fromMe ? (malvin.user.id.split(':')[0]+'@s.whatsapp.net' || malvin.user.id) : (mek.key.participant || mek.key.remoteJid)
   const senderNumber = sender.split('@')[0]
@@ -772,7 +689,7 @@ if (!isReact && senderNumber === botNumber) {
 	  // take commands 
                  
   const events = require('./malvin')
-  const cmdName = command; // Use the parsed command
+  const cmdName = isCmd ? body.slice(1).trim().split(" ")[0].toLowerCase() : false;
   if (isCmd) {
   const cmd = events.commands.find((cmd) => cmd.pattern === (cmdName)) || events.commands.find((cmd) => cmd.alias && cmd.alias.includes(cmdName))
   if (cmd) {
@@ -864,7 +781,7 @@ if (!isReact && senderNumber === botNumber) {
       let type = await FileType.fromBuffer(buffer)
       trueFileName = attachExtension ? (filename + '.' + type.ext) : filename
           // save to file
-      await fsSync.writeFileSync(trueFileName, buffer)
+      await fs.writeFileSync(trueFileName, buffer)
       return trueFileName
     }
     //=================================================
@@ -946,7 +863,7 @@ if (!isReact && senderNumber === botNumber) {
     //=====================================================
     malvin.getFile = async(PATH, save) => {
       let res
-      let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split `,` [1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fsSync.existsSync(PATH) ? (filename = PATH, fsSync.readFileSync(PATH)) : typeof PATH === 'string' ? PATH : Buffer.alloc(0)
+      let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split `,` [1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fs.existsSync(PATH) ? (filename = PATH, fs.readFileSync(PATH)) : typeof PATH === 'string' ? PATH : Buffer.alloc(0)
           //if (!Buffer.isBuffer(data)) throw new TypeError('Result is not a buffer')
       let type = await FileType.fromBuffer(data) || {
           mime: 'application/octet-stream',
@@ -1081,7 +998,7 @@ if (!isReact && senderNumber === botNumber) {
              */
     //=====================================================
     malvin.sendImage = async(jid, path, caption = '', quoted = '', options) => {
-      let buffer = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split `,` [1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fsSync.existsSync(path) ? fsSync.readFileSync(path) : Buffer.alloc(0)
+      let buffer = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split `,` [1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
       return await malvin.sendMessage(jid, { image: buffer, caption: caption, ...options }, { quoted })
     }
     
@@ -1138,7 +1055,6 @@ if (!isReact && senderNumber === botNumber) {
     *
     * @param {*} jid
     * @param {*} buttons
-    *
     * @param {*} caption
     * @param {*} footer
     * @param {*} quoted
@@ -1260,3 +1176,4 @@ app.listen(port, () =>
 setTimeout(() => {
   connectToWA();
 }, 4000);
+
