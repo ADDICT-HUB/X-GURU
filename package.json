@@ -59,7 +59,5 @@
     "wa-sticker-formatter": "^4.4.4",
     "wa_set_pkg": "^1.0.5",
     "yt-search": "^2.10.4"
-    
-    /* Removed redundant native modules: 'fs', 'path', 'util', 'vm', 'ffmpeg' */
   }
 }
