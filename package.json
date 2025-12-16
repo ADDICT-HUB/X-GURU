@@ -8,7 +8,7 @@
     "npm": ">=10.x"
   },
   "scripts": {
-    "start": "pm2 start index.js --deep-monitoring --attach --name X-GURU",
+    "start": "node index.js --deep-monitoring --attach --name X-GURU",
     "stop": "pm2 stop X-GURU",
     "restart": "pm2 restart X-GURU"
   },
