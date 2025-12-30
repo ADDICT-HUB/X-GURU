@@ -160,7 +160,7 @@ if (config.SESSION_ID.startsWith("Xguru~")) {
   console.log(chalk.green("[ ✅ ] MEGA session downloaded successfully"));
   return JSON.parse(data.toString());
 } else {
-  throw new Error("Invalid SESSION_ID format. Use 'Xguru~' for base64 or 'Xguru~' for MEGA.nz");
+  throw new Error("Invalid SESSION_ID format. Use 'Xguru~' for base64 or 'XGURU-MEGA~' for MEGA.nz");
 }
   } catch (error) {
     console.error(chalk.red("❌ Error loading session:", error.message));
