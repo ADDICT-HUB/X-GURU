@@ -239,18 +239,24 @@ async function connectToWA() {
     await connectWithPairing(malvin, useMobile);
   }
 
-malvin.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect, qr } = update;
+malvin.ev.on("connection.update", function(update) {
+    var connection = update.connection;
+    var lastDisconnect = update.lastDisconnect;
+    var qr = update.qr;
 
     if (connection === "close") {
-      const reason = lastDisconnect?.error?.output?.statusCode ?? null;
+      // Fixed: Remove optional chaining for compatibility
+      var reason = null;
+      if (lastDisconnect && lastDisconnect.error && lastDisconnect.error.output) {
+        reason = lastDisconnect.error.output.statusCode;
+      }
       
       // Initialize reconnect counter if not exists
       if (!global.reconnectAttempts) global.reconnectAttempts = 0;
       global.reconnectAttempts++;
       
-      console.log(chalk.red(`[ 🔍 ] Disconnect code: ${reason || 'unknown'}`));
-      console.log(chalk.yellow(`[ 🔍 ] Reconnect attempt: ${global.reconnectAttempts}`));
+      console.log(chalk.red("[ 🔍 ] Disconnect code: " + (reason || 'unknown')));
+      console.log(chalk.yellow("[ 🔍 ] Reconnect attempt: " + global.reconnectAttempts));
       
       if (reason === DisconnectReason.loggedOut) {
         console.log(chalk.red("[ 🛑 ] Connection closed, please change session ID or re-authenticate"));
@@ -260,8 +266,8 @@ malvin.ev.on("connection.update", async (update) => {
         process.exit(1);
       } else {
         // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
-        const delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
-        console.log(chalk.red(`[ ⏳️ ] Connection lost, reconnecting in ${delay/1000}s...`));
+        var delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
+        console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting in " + (delay/1000) + "s..."));
         setTimeout(connectToWA, delay);
       }
     } else if (connection === "open") {
@@ -270,16 +276,18 @@ malvin.ev.on("connection.update", async (update) => {
       console.log(chalk.green("[ 🤖 ] SILENT-LUNA Connected ✅"));
       
       // Load plugins
-      const pluginPath = path.join(__dirname, "plugins");
+      var pluginPath = path.join(__dirname, "plugins");
       try {
-        fsSync.readdirSync(pluginPath).forEach((plugin) => {
+        var plugins = fsSync.readdirSync(pluginPath);
+        for (var i = 0; i < plugins.length; i++) {
+          var plugin = plugins[i];
           if (path.extname(plugin).toLowerCase() === ".js") {
             require(path.join(pluginPath, plugin));
           }
-        });
+        }
         console.log(chalk.green("[ ✅ ] Plugins loaded successfully"));
       } catch (err) {
-        console.error(chalk.red("[ ❌ ] Error loading plugins:", err.message));
+        console.error(chalk.red("[ ❌ ] Error loading plugins: " + err.message));
       }
 
       // Rest of your success code remains here...
@@ -291,7 +299,6 @@ malvin.ev.on("connection.update", async (update) => {
       qrcode.generate(qr, { small: true });
     }
   });
-
       // Send connection message
 try {
   await sleep(2000);
