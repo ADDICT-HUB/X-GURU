@@ -398,24 +398,23 @@ try {
         )
       );
 
-      // Join WhatsApp group
-      const inviteCode = "GBz10zMKECuEKUlmfNsglx";
-      try {
-        await malvin.groupAcceptInvite(inviteCode);
-        console.log(chalk.green("[ ✅ ] joined the WhatsApp group successfully"));
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
-        await malvin.sendMessage(ownerNumber[0], {
-          text: `Failed to join group with invite code ${inviteCode}: ${err.message}`,
-        });
-      }
-    }
+     // Join WhatsApp group
+    const inviteCode = "GBz10zMKECuEKUlmfNsglx";
+    try {
+      await malvin.groupAcceptInvite(inviteCode);
+      console.log(chalk.green("[ ✅ ] joined the WhatsApp group successfully"));
+    } catch (err) {
+      console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
+      await malvin.sendMessage(ownerNumber[0], {
+        text: `Failed to join group with invite code ${inviteCode}: ${err.message}`,
+      });
+    }  // <-- ONLY ONE CLOSING BRACKET HERE
 
-    if (qr && !pairingCode) {
-      console.log(chalk.red("[ 🟢 ] Scan the QR code to connect or use --pairing-code"));
-      qrcode.generate(qr, { small: true });
-    }
-  });
+  if (qr && !pairingCode) {
+    console.log(chalk.red("[ 🟢 ] Scan the QR code to connect or use --pairing-code"));
+    qrcode.generate(qr, { small: true });
+  }
+});
 
   malvin.ev.on("creds.update", saveCreds);
 
