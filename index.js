@@ -130,38 +130,38 @@ async function loadSession() {
       return null;
     }
 
-    if (config.SESSION_ID.startsWith("Silent-luna~")) {
-      console.log(chalk.yellow("[ ⏳ ] Decoding base64 session..."));
-      const base64Data = config.SESSION_ID.replace("Silena-luna~", "");
-      if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
-        throw new Error("Invalid base64 format in SESSION_ID");
-      }
-      const decodedData = Buffer.from(base64Data, "base64");
-      let sessionData;
-      try {
-        sessionData = JSON.parse(decodedData.toString("utf-8"));
-      } catch (error) {
-        throw new Error("Failed to parse decoded base64 session data: " + error.message);
-      }
-      fsSync.writeFileSync(credsPath, decodedData);
-      console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
-      return sessionData;
-    } else if (config.SESSION_ID.startsWith("Silent-luna~")) {
-      console.log(chalk.yellow("[ ⏳ ] Downloading MEGA.nz session..."));
-      const megaFileId = config.SESSION_ID.replace("Silent-luna~", "");
-      const filer = File.fromURL(`https://mega.nz/file/${megaFileId}`);
-      const data = await new Promise((resolve, reject) => {
-        filer.download((err, data) => {
-          if (err) reject(err);
-          else resolve(data);
-        });
-      });
-      fsSync.writeFileSync(credsPath, data);
-      console.log(chalk.green("[ ✅ ] MEGA session downloaded successfully"));
-      return JSON.parse(data.toString());
-    } else {
-      throw new Error("Invalid SESSION_ID format. Use 'Silent-luna~' for base64 or 'Silent-luna~' for MEGA.nz");
-    }
+if (config.SESSION_ID.startsWith("Silent-luna~")) {
+  console.log(chalk.yellow("[ ⏳ ] Decoding base64 session..."));
+  const base64Data = config.SESSION_ID.replace("Silent-luna~", ""); // FIXED: Changed Silena-luna~ to Silent-luna~
+  if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
+    throw new Error("Invalid base64 format in SESSION_ID");
+  }
+  const decodedData = Buffer.from(base64Data, "base64");
+  let sessionData;
+  try {
+    sessionData = JSON.parse(decodedData.toString("utf-8"));
+  } catch (error) {
+    throw new Error("Failed to parse decoded base64 session data: " + error.message);
+  }
+  fsSync.writeFileSync(credsPath, decodedData);
+  console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
+  return sessionData;
+} else if (config.SESSION_ID.startsWith("Silena-luna~")) { // Changed from Silent-luna~ to Silena-luna~
+  console.log(chalk.yellow("[ ⏳ ] Downloading MEGA.nz session..."));
+  const megaFileId = config.SESSION_ID.replace("Silena-luna~", ""); // Changed from Silent-luna~ to Silena-luna~
+  const filer = File.fromURL(`https://mega.nz/file/${megaFileId}`);
+  const data = await new Promise((resolve, reject) => {
+    filer.download((err, data) => {
+      if (err) reject(err);
+      else resolve(data);
+    });
+  });
+  fsSync.writeFileSync(credsPath, data);
+  console.log(chalk.green("[ ✅ ] MEGA session downloaded successfully"));
+  return JSON.parse(data.toString());
+} else {
+  throw new Error("Invalid SESSION_ID format. Use 'Silent-luna~' for base64 or 'Silena-luna~' for MEGA.nz");
+}
   } catch (error) {
     console.error(chalk.red("❌ Error loading session:", error.message));
     console.log(chalk.green("Will attempt QR code or pairing code login"));
