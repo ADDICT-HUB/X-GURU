@@ -132,7 +132,7 @@ async function loadSession() {
 
 if (config.SESSION_ID.startsWith("Xguru~")) {
   console.log(chalk.yellow("[ ⏳ ] Decoding base64 session..."));
-  const base64Data = config.SESSION_ID.replace("Xguru~", ""); // FIXED: Changed Silena-luna~ to Silent-luna~
+  const base64Data = config.SESSION_ID.replace("Xguru~", "");
   if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
     throw new Error("Invalid base64 format in SESSION_ID");
   }
@@ -146,9 +146,9 @@ if (config.SESSION_ID.startsWith("Xguru~")) {
   fsSync.writeFileSync(credsPath, decodedData);
   console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
   return sessionData;
-} else if (config.SESSION_ID.startsWith("Xguru~")) { // Changed from Silent-luna~ to Silena-luna~
+} else if (config.SESSION_ID.startsWith("XGURU-MEGA~")) {
   console.log(chalk.yellow("[ ⏳ ] Downloading MEGA.nz session..."));
-  const megaFileId = config.SESSION_ID.replace("Xguru~", ""); // Changed from Silent-luna~ to Silena-luna~
+  const megaFileId = config.SESSION_ID.replace("XGURU-MEGA~", "");
   const filer = File.fromURL(`https://mega.nz/file/${megaFileId}`);
   const data = await new Promise((resolve, reject) => {
     filer.download((err, data) => {
@@ -273,7 +273,7 @@ malvin.ev.on("connection.update", function(update) {
     } else if (connection === "open") {
       // Reset counter on successful connection
       global.reconnectAttempts = 0;
-      console.log(chalk.green("[ 🤖 ] SILENT-LUNA Connected ✅"));
+      console.log(chalk.green("[ 🤖 ] XGURU Connected ✅"));
       
       // Load plugins
       var pluginPath = path.join(__dirname, "plugins");
@@ -290,8 +290,83 @@ malvin.ev.on("connection.update", function(update) {
         console.error(chalk.red("[ ❌ ] Error loading plugins: " + err.message));
       }
 
-      // Rest of your success code remains here...
-      // Send connection message, follow newsletters, etc.
+      // Send connection message
+      try {
+        // Get current date and time
+        var currentDate = new Date();
+        var date = currentDate.toLocaleDateString();
+        var time = currentDate.toLocaleTimeString();
+        
+        // Format uptime
+        function formatUptime(seconds) {
+          var days = Math.floor(seconds / (24 * 60 * 60));
+          seconds %= 24 * 60 * 60;
+          var hours = Math.floor(seconds / (60 * 60));
+          seconds %= 60 * 60;
+          var minutes = Math.floor(seconds / 60);
+          seconds = Math.floor(seconds % 60);
+          
+          return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+        }
+        
+        var uptime = formatUptime(process.uptime());
+        var prefix = getPrefix();
+
+        var upMessage = `
+*┏──〔 𝐗-𝐆𝐔𝐑𝐔 𝐂𝐨𝐧𝐧𝐞𝐜𝐭𝐞𝐝 〕───⊷*   
+*┇ Prefix: ${prefix}*
+*┇ Date: ${date}*
+*┇ Time: ${time}*
+*┇ Uptime: ${uptime}*
+*┇ Owner: GuruTech*
+*┇ Channel:*  
+*┇ https://whatsapp.com/channel/0029VaPFhgd07Zx92vmhXM1V*
+*┗──────────────⊷*
+> *Report any error to the developer*`;
+
+        var jid = malvin.decodeJid(malvin.user.id);
+        if (!jid) throw new Error("Invalid JID for bot");
+
+        try {
+          malvin.sendMessage(jid, {
+            image: { url: "https://files.catbox.moe/atpgij.jpg" },
+            caption: upMessage,
+          }, { quoted: null }).then(function() {
+            console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
+          }).catch(function(imageError) {
+            console.error(chalk.yellow("[ ⚠️ ] Image failed, sending text-only:"), imageError.message);
+            malvin.sendMessage(jid, { text: upMessage }).then(function() {
+              console.log(chalk.green("[ 📩 ] Connection notice sent successfully as text"));
+            });
+          });
+        } catch (sendError) {
+          console.error(chalk.red("[ 🔴 ] Error sending connection notice: " + sendError.message));
+        }
+      } catch (error) {
+        console.error(chalk.red("[ ❌ ] Error in connection message: " + error.message));
+      }
+
+      // Follow single newsletter
+      var newsletterChannel = "120363421164015033@newsletter";
+      
+      setTimeout(function() {
+        try {
+          console.log(chalk.cyan("[ 📡 ] Checking newsletter: " + newsletterChannel));
+          
+          // Simpler newsletter follow - just try to follow without checking metadata first
+          malvin.newsletterFollow(newsletterChannel).then(function() {
+            console.log(chalk.green("[ ✅ ] Followed newsletter: " + newsletterChannel));
+          }).catch(function(error) {
+            if (error.message && error.message.includes("already")) {
+              console.log(chalk.yellow("[ 📌 ] Already following newsletter: " + newsletterChannel));
+            } else {
+              console.error(chalk.red("[ ❌ ] Failed to follow newsletter " + newsletterChannel + ": " + error.message));
+            }
+          });
+        } catch (error) {
+          console.error(chalk.red("[ ❌ ] Error with newsletter: " + error.message));
+        }
+      }, 3000);
     }
 
     if (qr && !pairingCode) {
@@ -299,207 +374,6 @@ malvin.ev.on("connection.update", function(update) {
       qrcode.generate(qr, { small: true });
     }
   });
-      // Send connection message
-try {
-  await sleep(2000);
-  const jid = malvin.decodeJid(malvin.user.id);
-  if (!jid) throw new Error("Invalid JID for bot");
-
-  const botname = "𝐒𝐈𝐋𝐄𝐍𝐓-𝐋𝐔𝐍𝐀";
-  const ownername = "GURU";
-  const prefix = getPrefix();
-  const username = "Guru";
-  const mrmalvin = `https://github.com/${username}`;
-  const repoUrl = "https://github.com/itsguruu/SILENT-LUNA";
-  const welcomeAudio = "https://files.catbox.moe/z47dgd.p3";
-  
-  // Get current date and time
-  const currentDate = new Date();
-  const date = currentDate.toLocaleDateString();
-  const time = currentDate.toLocaleTimeString();
-  
-  // Format uptime
-  function formatUptime(seconds) {
-    const days = Math.floor(seconds / (24 * 60 * 60));
-    seconds %= 24 * 60 * 60;
-    const hours = Math.floor(seconds / (60 * 60));
-    seconds %= 60 * 60;
-    const minutes = Math.floor(seconds / 60);
-    seconds = Math.floor(seconds % 60);
-    
-    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-  }
-  
-  const uptime = formatUptime(process.uptime());
-
-  const upMessage = `
-*┏──〔 Connected 〕───⊷*   
-*┇ Prefix: ${prefix}*
-*┇ Date: ${date}*
-*┇ Time: ${time}*
-*┇ Uptime: ${uptime}*
-*┇ Owner: ${ownername}*
-*┇ Follow Channel:*  
-*┇ https://shorturl.at/DYEi0*
-*┗──────────────⊷*
-> *Report any error to the dev*`;
-
-  try {
-    await malvin.sendMessage(jid, {
-      image: { url: "https://url.bwmxmd.online/Adams.xm472dqv.jpeg" },
-malvin.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-
-    if (connection === "close") {
-      const reason = lastDisconnect?.error?.output?.statusCode;
-      if (reason === DisconnectReason.loggedOut) {
-        console.log(chalk.red("[ 🛑 ] Connection closed, please change session ID or re-authenticate"));
-        if (fsSync.existsSync(credsPath)) {
-          fsSync.unlinkSync(credsPath);
-        }
-        process.exit(1);
-      } else {
-        console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting..."));
-        setTimeout(connectToWA, 5000);
-      }
-    } else if (connection === "open") {
-      console.log(chalk.green("[ 🤖 ] SILENT-LUNA Connected ✅"));
-
-      // Load plugins
-      const pluginPath = path.join(__dirname, "plugins");
-      try {
-        fsSync.readdirSync(pluginPath).forEach((plugin) => {
-          if (path.extname(plugin).toLowerCase() === ".js") {
-            require(path.join(pluginPath, plugin));
-          }
-        });
-        console.log(chalk.green("[ ✅ ] Plugins loaded successfully"));
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Error loading plugins:", err.message));
-      }
-
-      // Send connection message
-      try {
-        await sleep(2000);
-        const jid = malvin.decodeJid(malvin.user.id);
-        if (!jid) throw new Error("Invalid JID for bot");
-
-        const botname = "𝐒𝐈𝐋𝐄𝐍𝐓-𝐋𝐔𝐍𝐀";
-        const ownername = "GURU";
-        const prefix = getPrefix();
-        const username = "Guru";
-        const mrmalvin = `https://github.com/${username}`;
-        const repoUrl = "https://github.com/itsguruu/SILENT-LUNA";
-        const welcomeAudio = "https://files.catbox.moe/z47dgd.p3";
-        
-        const currentDate = new Date();
-        const date = currentDate.toLocaleDateString();
-        const time = currentDate.toLocaleTimeString();
-        
-        function formatUptime(seconds) {
-          const days = Math.floor(seconds / (24 * 60 * 60));
-          seconds %= 24 * 60 * 60;
-          const hours = Math.floor(seconds / (60 * 60));
-          seconds %= 60 * 60;
-          const minutes = Math.floor(seconds / 60);
-          seconds = Math.floor(seconds % 60);
-          return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        }
-        
-        const uptime = formatUptime(process.uptime());
-
-        const upMessage = `
-*┏──〔 Connected 〕───⊷*   
-*┇ Prefix: ${prefix}*
-*┇ Date: ${date}*
-*┇ Time: ${time}*
-*┇ Uptime: ${uptime}*
-*┇ Owner: ${ownername}*
-*┇ Follow Channel:*  
-*┇ https://shorturl.at/DYEi0*
-*┗──────────────⊷*
-> *Report any error to the dev*`;
-
-        try {
-          await malvin.sendMessage(jid, {
-            image: { url: "https://url.bwmxmd.online/Adams.xm472dqv.jpeg" },
-            caption: upMessage,
-          }, { quoted: null });
-          console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
-
-          await malvin.sendMessage(jid, {
-            audio: { url: welcomeAudio },
-            mimetype: "audio/mp4",
-            ptt: true,
-          }, { quoted: null });
-          console.log(chalk.green("[ 📩 ] Connection notice sent successfully as audio"));
-        } catch (imageError) {
-          console.error(chalk.yellow("[ ⚠️ ] Image failed, sending text-only:"), imageError.message);
-          await malvin.sendMessage(jid, { text: upMessage });
-          console.log(chalk.green("[ 📩 ] Connection notice sent successfully as text"));
-        }
-      } catch (sendError) {
-        console.error(chalk.red(`[ 🔴 ] Error sending connection notice: ${sendError.message}`));
-        await malvin.sendMessage(ownerNumber[0], {
-          text: `Failed to send connection notice: ${sendError.message}`,
-        });
-      }
-
-      // Follow newsletters
-      const newsletterChannels = [
-        "120363299029326322@newsletter",
-        "120363401297349965@newsletter",
-        "120363339980514201@newsletter",
-      ];
-      let followed = [];
-      let alreadyFollowing = [];
-      let failed = [];
-
-      for (const channelJid of newsletterChannels) {
-        try {
-          console.log(chalk.cyan(`[ 📡 ] Checking metadata for ${channelJid}`));
-          const metadata = await malvin.newsletterMetadata("jid", channelJid);
-          if (!metadata.viewer_metadata) {
-            await malvin.newsletterFollow(channelJid);
-            followed.push(channelJid);
-            console.log(chalk.green(`[ ✅ ] Followed newsletter: ${channelJid}`));
-          } else {
-            alreadyFollowing.push(channelJid);
-            console.log(chalk.yellow(`[ 📌 ] Already following: ${channelJid}`));
-          }
-        } catch (error) {
-          failed.push(channelJid);
-          console.error(chalk.red(`[ ❌ ] Failed to follow ${channelJid}: ${error.message}`));
-          await malvin.sendMessage(ownerNumber[0], {
-            text: `Failed to follow ${channelJid}: ${error.message}`,
-          });
-        }
-      }
-
-      console.log(
-        chalk.cyan(
-          `📡 Newsletter Follow Status:\n✅ Followed: ${followed.length}\n📌 Already following: ${alreadyFollowing.length}\n❌ Failed: ${failed.length}`
-        )
-      );
-
-      // Join WhatsApp group
-      const inviteCode = "GBz10zMKECuEKUlmfNsglx";
-      try {
-        await malvin.groupAcceptInvite(inviteCode);
-        console.log(chalk.green("[ ✅ ] joined the WhatsApp group successfully"));
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
-        await malvin.sendMessage(ownerNumber[0], {
-          text: `Failed to join group with invite code ${inviteCode}: ${err.message}`,
-        });
-      }
-    }
-
-    if (qr && !pairingCode) {
-      console.log(chalk.red("[ 🟢 ] Scan the QR code to connect or use --pairing-code"));
-      qrcode.generate(qr, { small: true });
-    }
-  });  // <-- THIS IS THE CLOSING ); - MAKE SURE IT'S CORRECT
 
 malvin.ev.on("creds.update", saveCreds);
 
@@ -569,9 +443,7 @@ BotActivityFilter(malvin);
     }
 
   const newsletterJids = [
-        "120363401297349965@newsletter",
-        "120363339980514201@newsletter",
-        "120363299029326322@newsletter",
+        "120363421164015033@newsletter",
   ];
   const emojis = ["😂", "🥺", "👍", "☺️", "🥹", "♥️", "🩵"];
 
