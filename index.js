@@ -243,7 +243,7 @@ malvin.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (connection === "close") {
-      const reason = lastDisconnect?.error?.output?.statusCode;
+      const reason = lastDisconnect?.error?.output?.statusCode ?? null;
       
       // Initialize reconnect counter if not exists
       if (!global.reconnectAttempts) global.reconnectAttempts = 0;
