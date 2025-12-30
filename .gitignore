@@ -1,0 +1,36 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Session files
+*.session
+*.session.*
+baileys_store.json
+
+# Sensitive data
+credentials.json
+config.js
+config.json
+
+# Data files (except structure)
+data/*.db
+data/*.json
+sessions/*
+plugins/*.session
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

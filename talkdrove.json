@@ -1,0 +1,31 @@
+
+{
+"bot-name": "Mercedes",
+  "description": "Made By Marisel",
+  "logo": "https://url.bwmxmd.online/Adams.0dhfcjpi.jpeg",
+  "keywords": ["bot"],
+  "documentation-link": "https://malvinxd-pairsession.onrender.com/",
+    "owner-verification":"malvink003@gmail.com",
+  
+    "env": {
+      "SESSION_ID": {
+        "description": "Put your SESSION_ID here. It starts with malvin~",
+        "value":"",
+        "required": true
+        
+      },
+      
+    "OWNER_NUMBER": {
+      "description": "Enter owner number",
+      "required": true,
+      "value": "2547400075677"
+      
+       },
+      "TIMEZONE": {
+      "description": "Enter country timezone",
+      "required": true,
+      "value": "Africa/Nairobi"
+
+    }  
+  }
+}
