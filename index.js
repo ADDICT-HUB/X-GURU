@@ -239,11 +239,19 @@ async function connectToWA() {
     await connectWithPairing(malvin, useMobile);
   }
 
-  malvin.ev.on("connection.update", async (update) => {
+malvin.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
+      
+      // Initialize reconnect counter if not exists
+      if (!global.reconnectAttempts) global.reconnectAttempts = 0;
+      global.reconnectAttempts++;
+      
+      console.log(chalk.red(`[ 🔍 ] Disconnect code: ${reason || 'unknown'}`));
+      console.log(chalk.yellow(`[ 🔍 ] Reconnect attempt: ${global.reconnectAttempts}`));
+      
       if (reason === DisconnectReason.loggedOut) {
         console.log(chalk.red("[ 🛑 ] Connection closed, please change session ID or re-authenticate"));
         if (fsSync.existsSync(credsPath)) {
@@ -251,12 +259,16 @@ async function connectToWA() {
         }
         process.exit(1);
       } else {
-        console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting..."));
-        setTimeout(connectToWA, 5000);
+        // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
+        const delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
+        console.log(chalk.red(`[ ⏳️ ] Connection lost, reconnecting in ${delay/1000}s...`));
+        setTimeout(connectToWA, delay);
       }
     } else if (connection === "open") {
+      // Reset counter on successful connection
+      global.reconnectAttempts = 0;
       console.log(chalk.green("[ 🤖 ] SILENT-LUNA Connected ✅"));
-
+      
       // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
       try {
@@ -269,6 +281,16 @@ async function connectToWA() {
       } catch (err) {
         console.error(chalk.red("[ ❌ ] Error loading plugins:", err.message));
       }
+
+      // Rest of your success code remains here...
+      // Send connection message, follow newsletters, etc.
+    }
+
+    if (qr && !pairingCode) {
+      console.log(chalk.red("[ 🟢 ] Scan the QR code to connect or use --pairing-code"));
+      qrcode.generate(qr, { small: true });
+    }
+  });
 
       // Send connection message
 try {
