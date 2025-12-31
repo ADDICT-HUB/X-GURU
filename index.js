@@ -321,15 +321,22 @@ async function connectToWA() {
         var uptime = formatUptime(process.uptime());
         var prefix = getPrefix();
 
-        var upMessage = `
-*┏──〔 𝐗-𝐆𝐔𝐑𝐔 𝐂𝐨𝐧𝐧𝐞𝐜𝐭𝐞𝐝 〕───⊷* *┇ Prefix: ${prefix}*
-*┇ Date: ${date}*
-*┇ Time: ${time}*
-*┇ Uptime: ${uptime}*
-*┇ Owner: GuruTech*
-*┇ Channel:* *┇ https://whatsapp.com/channel/0029VaPFhgd07Zx92vmhXM1V*
-*┗──────────────⊷*
-> *Report any error to the developer*`;
+var upMessage = `
+╔═══════════════════════════
+║        X-GURU BOT
+╠═══════════════════════════
+║ 📅 Date    : ${date}
+║ ⏰ Time    : ${time}
+║ ⚡ Uptime  : ${uptime}
+║ 👑 Owner   : GuruTech
+║ 🎯 Prefix  : ${prefix}
+╠═══════════════════════════
+║ 📢 Channel:
+║ whatsapp.com/channel/
+║ 0029VaPFhgd07Zx92vmhXM1V
+╠═══════════════════════════
+║ > 🇰🇪 FOREVER RESPECTED 
+╚═══════════════════════════`;
 
 
         var jid = malvin.decodeJid(malvin.user.id);
