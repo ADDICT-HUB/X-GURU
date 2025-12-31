@@ -225,11 +225,15 @@ async function connectToWA() {
   const pairingCode = config.PAIRING_CODE === "true" || process.argv.includes("--pairing-code");
   const useMobile = process.argv.includes("--mobile");
 
-malvin = makeWASocket({
+  malvin = makeWASocket({
     logger: P({ level: "silent" }),
     printQRInTerminal: !creds && !pairingCode,
-    browser: Browsers.macOS("Firefox"),
+    // Fix: Using a standard browser identity reduces 405 errors
+    browser: ["XGURU", "Chrome", "1.1.0"],
+    // Fix: Set to false to prevent Heroku from crashing during heavy sync
     syncFullHistory: false,
+    // Fix: Added to ensure the bot maintains a stable heartbeat
+    keepAliveIntervalMs: 30000,
     auth: state,
     version,
     getMessage: async () => ({}),
@@ -237,13 +241,13 @@ malvin = makeWASocket({
     retryRequestDelayMs: 1000,
     maxRetries: 10,
     connectTimeoutMs: 30000,
-});
+  });
 
   if (pairingCode && !state.creds.registered) {
     await connectWithPairing(malvin, useMobile);
   }
 
-malvin.ev.on("connection.update", function(update) {
+  malvin.ev.on("connection.update", function(update) {
     var connection = update.connection;
     var lastDisconnect = update.lastDisconnect;
     var qr = update.qr;
@@ -262,8 +266,9 @@ malvin.ev.on("connection.update", function(update) {
       console.log(chalk.red("[ 🔍 ] Disconnect code: " + (reason || 'unknown')));
       console.log(chalk.yellow("[ 🔍 ] Reconnect attempt: " + global.reconnectAttempts));
       
-      if (reason === DisconnectReason.loggedOut) {
-        console.log(chalk.red("[ 🛑 ] Connection closed, please change session ID or re-authenticate"));
+      // Fix: If 405 occurs, it often means the session is dead on the server
+      if (reason === DisconnectReason.loggedOut || reason === 405) {
+        console.log(chalk.red("[ 🛑 ] Session invalid (Code 405). Please generate a NEW session ID."));
         if (fsSync.existsSync(credsPath)) {
           fsSync.unlinkSync(credsPath);
         }
@@ -317,16 +322,15 @@ malvin.ev.on("connection.update", function(update) {
         var prefix = getPrefix();
 
         var upMessage = `
-*┏──〔 𝐗-𝐆𝐔𝐑𝐔 𝐂𝐨𝐧𝐧𝐞𝐜𝐭𝐞𝐝 〕───⊷*   
-*┇ Prefix: ${prefix}*
+*┏──〔 𝐗-𝐆𝐔𝐑𝐔 𝐂𝐨𝐧𝐧𝐞𝐜𝐭𝐞𝐝 〕───⊷* *┇ Prefix: ${prefix}*
 *┇ Date: ${date}*
 *┇ Time: ${time}*
 *┇ Uptime: ${uptime}*
 *┇ Owner: GuruTech*
-*┇ Channel:*  
-*┇ https://whatsapp.com/channel/0029VaPFhgd07Zx92vmhXM1V*
+*┇ Channel:* *┇ https://whatsapp.com/channel/0029VaPFhgd07Zx92vmhXM1V*
 *┗──────────────⊷*
 > *Report any error to the developer*`;
+
 
         var jid = malvin.decodeJid(malvin.user.id);
         if (!jid) throw new Error("Invalid JID for bot");
