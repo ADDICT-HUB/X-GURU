@@ -225,11 +225,15 @@ async function connectToWA() {
   const pairingCode = config.PAIRING_CODE === "true" || process.argv.includes("--pairing-code");
   const useMobile = process.argv.includes("--mobile");
 
-  malvin = makeWASocket({
+    malvin = makeWASocket({
     logger: P({ level: "silent" }),
     printQRInTerminal: !creds && !pairingCode,
-    browser: Browsers.macOS("Firefox"),
-    syncFullHistory: true,
+    // Change 1: Use a more standard browser identity
+    browser: ["XGURU", "Chrome", "1.0.0"], 
+    // Change 2: Set this to false to prevent history overload
+    syncFullHistory: false, 
+    // Change 3: Add this for better multi-device stability
+    markOnlineOnConnect: true,
     auth: state,
     version,
     getMessage: async () => ({}),
