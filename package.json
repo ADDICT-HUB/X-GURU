@@ -1,16 +1,16 @@
 {
-  "name": "Mercedes",
+  "name": "XGURU",
   "version": "1.5.0",
-  "description": "A WhatsApp Bot",
+  "description": "Advanced WhatsApp Bot by GuruTech",
   "main": "index.js",
   "engines": {
     "node": ">=18.x",
     "npm": ">=10.x"
   },
   "scripts": {
-    "start": "pm2 start index.js --deep-monitoring --attach --name Mercedes",
-    "stop": "pm2 stop Mercedes",
-    "restart": "pm2 restart Mercedes"
+    "start": "pm2 start index.js --deep-monitoring --attach --name XGURU",
+    "stop": "pm2 stop XGURU",
+    "restart": "pm2 restart XGURU"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "github:EdderBot02/bail",
@@ -66,4 +66,3 @@
     "yt-search": "2.13.1"
   }
 }
-
