@@ -141,47 +141,42 @@ async function loadSession() {
 
       try {
         // Decode base64
-        const decodedData = Buffer.from(base64Data, "base64").toString("utf-8");
-        const sessionData = JSON.parse(decodedData);
+        const decodedData = Buffer.from(base64Data, "base64");
+        const sessionData = JSON.parse(decodedData.toString("utf-8"));
         
-        console.log(chalk.green(`[ ✅ ] Session loaded successfully. Registered: ${sessionData.registered || false}`));
+        console.log(chalk.green(`[ ✅ ] Session loaded successfully`));
         console.log(chalk.cyan(`[ 📱 ] Account: ${sessionData.me?.name || 'Unknown'}`));
+        console.log(chalk.cyan(`[ 🔐 ] Registered: ${sessionData.registered ? 'YES ✅' : 'NO ❌'}`));
+        console.log(chalk.cyan(`[ 📏 ] Session size: ${base64Data.length} chars`));
         
-        // FIX: Convert all base64 string buffers to Buffer objects
+        // CRITICAL: If session is not registered, don't use it
+        if (!sessionData.registered) {
+          console.log(chalk.red("[ ❌ ] Session not registered! Will use QR code instead."));
+          return null;
+        }
+        
+        // Convert Buffer strings back to Buffer objects
         function fixBuffers(obj) {
           if (!obj || typeof obj !== 'object') return obj;
           
-          // Check if it's a Buffer object stored as {type: "Buffer", data: [...]}
           if (obj.type === "Buffer" && Array.isArray(obj.data)) {
             return Buffer.from(obj.data);
           }
           
-          // Check if it's a base64 string that should be a Buffer
-          if (typeof obj === 'string' && obj.length > 100 && /^[A-Za-z0-9+/=]+$/.test(obj)) {
-            // This might be a base64 encoded Buffer
+          if (typeof obj === 'string' && obj.length > 50 && /^[A-Za-z0-9+/=]+$/.test(obj)) {
             return Buffer.from(obj, 'base64');
           }
           
-          // Recursively process object properties
-          if (typeof obj === 'object') {
-            for (const key in obj) {
-              if (obj.hasOwnProperty(key)) {
-                obj[key] = fixBuffers(obj[key]);
-              }
+          for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+              obj[key] = fixBuffers(obj[key]);
             }
           }
           
           return obj;
         }
         
-        // Convert all Buffer data
         const processedSession = fixBuffers(sessionData);
-        
-        // Specific fix for private keys that might be strings
-        if (processedSession.privateKey && typeof processedSession.privateKey === 'string') {
-          processedSession.privateKey = Buffer.from(processedSession.privateKey, 'base64');
-        }
-        
         return processedSession;
       } catch (parseError) {
         console.error(chalk.red("[ ❌ ] Failed to parse session data:"), parseError.message);
