@@ -1092,7 +1092,6 @@ app.listen(port, () =>
 
 setTimeout(() => {
   connectToWA();
-}, 4000
+}, 4000);
 
-
-		   //https://github.com/SilvaTechB
+////FOREVER RESPECTED 
