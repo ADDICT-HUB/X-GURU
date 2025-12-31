@@ -286,18 +286,18 @@ async function connectToWA() {
   console.log(chalk.yellow("[ 🔍 ] Reconnect attempt: " + global.reconnectAttempts));
   
   // Fix: If 405 occurs, it often means the session is dead on the server
-  if (reason === DisconnectReason.loggedOut || reason === 405) {
-    console.log(chalk.red("[ 🛑 ] Session invalid (Code 405). Please generate a NEW session ID."));
-    if (fsSync.existsSync(credsPath)) {
-      fsSync.unlinkSync(credsPath);
-    }
-    process.exit(1);
-  } else {
-    // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
-    var delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
-    console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting in " + (delay/1000) + "s..."));
-    setTimeout(connectToWA, delay);
+if (reason === DisconnectReason.loggedOut || reason === 405) {
+  console.log(chalk.red("[ 🛑 ] Session invalid (Code 405). Please generate a NEW session ID."));
+  if (fsSync.existsSync(credsPath)) {
+    fsSync.unlinkSync(credsPath);
   }
+  process.exit(1);
+} else {
+  // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
+  var delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
+  console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting in " + (delay/1000) + "s..."));
+  setTimeout(connectToWA, delay);
+}
 } else if (connection === "open") {
   // Reset counter on successful connection
   global.reconnectAttempts = 0;
@@ -318,6 +318,34 @@ async function connectToWA() {
     console.error(chalk.red("[ ❌ ] Error loading plugins: " + err.message));
   }
 
+  // Send connection message
+  try {
+    // Get current date and time
+    var currentDate = new Date();
+    var date = currentDate.toLocaleDateString();
+    var time = currentDate.toLocaleTimeString();
+    
+    // Format uptime
+    function formatUptime(seconds) {
+      var days = Math.floor(seconds / (24 * 60 * 60));
+      seconds %= 24 * 60 * 60;
+      var hours = Math.floor(seconds / (60 * 60));
+      seconds %= 60 * 60;
+      var minutes = Math.floor(seconds / 60);
+      seconds = Math.floor(seconds % 60);
+      
+      return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+    }
+    
+    var uptime = formatUptime(process.uptime());
+    var prefix = getPrefix();
+    
+    // Rest of your connection message code should continue here...
+    // MAKE SURE THIS try BLOCK HAS A CLOSING } catch OR } finally
+    
+  } catch (error) {
+    console.error(chalk.red("[ ❌ ] Error sending connection message: " + error.message));
+  } // ← THIS CLOSES THE try BLOCK
   // Send connection message
   try {
     // Get current date and time
