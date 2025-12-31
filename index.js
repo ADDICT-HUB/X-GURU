@@ -146,21 +146,8 @@ if (config.SESSION_ID.startsWith("Xguru~")) {
   fsSync.writeFileSync(credsPath, decodedData);
   console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
   return sessionData;
-} else if (config.SESSION_ID.startsWith("XGURU-MEGA~")) {
-  console.log(chalk.yellow("[ ⏳ ] Downloading MEGA.nz session..."));
-  const megaFileId = config.SESSION_ID.replace("XGURU-MEGA~", "");
-  const filer = File.fromURL(`https://mega.nz/file/${megaFileId}`);
-  const data = await new Promise((resolve, reject) => {
-    filer.download((err, data) => {
-      if (err) reject(err);
-      else resolve(data);
-    });
-  });
-  fsSync.writeFileSync(credsPath, data);
-  console.log(chalk.green("[ ✅ ] MEGA session downloaded successfully"));
-  return JSON.parse(data.toString());
 } else {
-  throw new Error("Invalid SESSION_ID format. Use 'Xguru~' for base64 or 'XGURU-MEGA~' for MEGA.nz");
+  throw new Error("Invalid SESSION_ID format. Use 'Xguru~' for base64");
 }
   } catch (error) {
     console.error(chalk.red("❌ Error loading session:", error.message));
@@ -295,31 +282,63 @@ async function connectToWA() {
           }
         }
         console.log(chalk.green("[ ✅ ] Plugins loaded successfully"));
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Error loading plugins: " + err.message));
+   console.log(chalk.red("[ 🔍 ] Disconnect code: " + (reason || 'unknown')));
+  console.log(chalk.yellow("[ 🔍 ] Reconnect attempt: " + global.reconnectAttempts));
+  
+  // Fix: If 405 occurs, it often means the session is dead on the server
+  if (reason === DisconnectReason.loggedOut || reason === 405) {
+    console.log(chalk.red("[ 🛑 ] Session invalid (Code 405). Please generate a NEW session ID."));
+    if (fsSync.existsSync(credsPath)) {
+      fsSync.unlinkSync(credsPath);
+    }
+    process.exit(1);
+  } else {
+    // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
+    var delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
+    console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting in " + (delay/1000) + "s..."));
+    setTimeout(connectToWA, delay);
+  }
+} else if (connection === "open") {
+  // Reset counter on successful connection
+  global.reconnectAttempts = 0;
+  console.log(chalk.green("[ 🤖 ] XGURU Connected ✅"));
+  
+  // Load plugins
+  var pluginPath = path.join(__dirname, "plugins");
+  try {
+    var plugins = fsSync.readdirSync(pluginPath);
+    for (var i = 0; i < plugins.length; i++) {
+      var plugin = plugins[i];
+      if (path.extname(plugin).toLowerCase() === ".js") {
+        require(path.join(pluginPath, plugin));
       }
+    }
+    console.log(chalk.green("[ ✅ ] Plugins loaded successfully"));
+  } catch (err) {
+    console.error(chalk.red("[ ❌ ] Error loading plugins: " + err.message));
+  }
 
-      // Send connection message
-      try {
-        // Get current date and time
-        var currentDate = new Date();
-        var date = currentDate.toLocaleDateString();
-        var time = currentDate.toLocaleTimeString();
-        
-        // Format uptime
-        function formatUptime(seconds) {
-          var days = Math.floor(seconds / (24 * 60 * 60));
-          seconds %= 24 * 60 * 60;
-          var hours = Math.floor(seconds / (60 * 60));
-          seconds %= 60 * 60;
-          var minutes = Math.floor(seconds / 60);
-          seconds = Math.floor(seconds % 60);
-          
-          return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
-        }
-        
-        var uptime = formatUptime(process.uptime());
-        var prefix = getPrefix();
+  // Send connection message
+  try {
+    // Get current date and time
+    var currentDate = new Date();
+    var date = currentDate.toLocaleDateString();
+    var time = currentDate.toLocaleTimeString();
+    
+    // Format uptime
+    function formatUptime(seconds) {
+      var days = Math.floor(seconds / (24 * 60 * 60));
+      seconds %= 24 * 60 * 60;
+      var hours = Math.floor(seconds / (60 * 60));
+      seconds %= 60 * 60;
+      var minutes = Math.floor(seconds / 60);
+      seconds = Math.floor(seconds % 60);
+      
+      return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+    }
+    
+    var uptime = formatUptime(process.uptime());
+    var prefix = getPrefix();
 
 var upMessage = `
 ╔═══════════════════════════
