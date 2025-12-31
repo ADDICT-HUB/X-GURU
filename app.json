@@ -1,181 +1,40 @@
 {
   "name": "XGURU",
-  "description": "Advanced WhatsApp Bot by GuruTech with 100+ Features",
+  "description": "WhatsApp bot by GuruTech",
   "logo": "https://files.catbox.moe/atpgij.jpg",
-  "keywords": ["whatsapp", "bot", "xguru", "whatsapp-bot", "automation"],
+  "keywords": ["whatsapp", "bot", "xguru"],
   "success_url": "/",
-  "website": "https://github.com/ADDICT-HUB/X-GURU",
-  "repository": "https://github.com/ADDICT-HUB/X-GURU",
   "stack": "heroku-24",
-
+  
   "env": {
     "SESSION_ID": {
-      "description": "Your WhatsApp session ID. Get it from: https://x-guru-sessions.onrender.com",
+      "description": "Your WhatsApp session ID (required)",
       "required": true,
       "value": ""
-    },
+    },      
     
     "PREFIX": {
-      "description": "Bot command prefix (use '.' or any single character)",
+      "description": "Command prefix (default: .)",
       "required": false,
       "value": "."
     },
     
     "MODE": {
-      "description": "Bot mode: 'public' (everyone), 'private' (owner only), 'groups' (group chats only), 'inbox' (private chats only)",
+      "description": "Bot mode: public/private/groups/inbox",
       "required": false,
       "value": "private"
-    },
+   }, 
 
     "OWNER_NUMBER": {
-      "description": "Bot owner's WhatsApp number (with country code, no +)",
+      "description": "Bot owner's WhatsApp number",
       "required": false,
       "value": "218942841878"
-    },
-
-    "BOT_NAME": {
-      "description": "Your bot's display name",
-      "required": false,
-      "value": "XGURU"
-    },
-    
-    "MENU_IMAGE_URL": {
-      "description": "Image URL for menu and help commands",
-      "required": false,
-      "value": "https://files.catbox.moe/atpgij.jpg"
-    },
-    
-    "DESCRIPTION": {
-      "description": "Bot description for menu and info commands",
-      "required": false,
-      "value": "✨ Advanced WhatsApp Bot with 100+ Features\n👨‍💻 Made by GuruTech\n⭐ Star the repo if you like it!"
-    },
-
-    "AUTO_RECORDING": {
-      "description": "Enable/disable auto recording of voice messages",
-      "required": false,
-      "value": "false"
-    },
-
-    "AUTO_TYPING": {
-      "description": "Enable/disable auto typing indicator",
-      "required": false,
-      "value": "false"
-    },
-
-    "PAIRING_CODE": {
-      "description": "Enable pairing code mode (true/false)",
-      "required": false,
-      "value": "false"
-    },
-
-    "ANTI_CALL": {
-      "description": "Enable anti-call feature (true/false)",
-      "required": false,
-      "value": "true"
-    },
-
-    "AUTO_STATUS_SEEN": {
-      "description": "Auto mark status as seen (true/false)",
-      "required": false,
-      "value": "true"
-    },
-
-    "AUTO_STATUS_REACT": {
-      "description": "Auto react to status updates (true/false)",
-      "required": false,
-      "value": "false"
-    },
-
-    "AUTO_STATUS_REPLY": {
-      "description": "Auto reply to status updates (true/false)",
-      "required": false,
-      "value": "false"
-    },
-
-    "AUTO_REACT": {
-      "description": "Auto react to all messages (true/false)",
-      "required": false,
-      "value": "true"
-    },
-
-    "OWNER_REACT": {
-      "description": "Auto react to owner's messages (true/false)",
-      "required": false,
-      "value": "true"
-    },
-
-    "HEART_REACT": {
-      "description": "Use heart reactions for owner (true/false)",
-      "required": false,
-      "value": "true"
-    },
-
-    "CUSTOM_REACT": {
-      "description": "Use custom reactions (true/false)",
-      "required": false,
-      "value": "false"
-    },
-
-    "CUSTOM_REACT_EMOJIS": {
-      "description": "Custom reaction emojis (comma separated)",
-      "required": false,
-      "value": "❤️,😍,👍,🔥,⭐"
-    },
-
-    "AUTO_STATUS_MSG": {
-      "description": "Auto reply message for status",
-      "required": false,
-      "value": "Hello! This is XGURU Bot 👋"
-    },
-
-    "REJECT_MSG": {
-      "description": "Message to send when rejecting calls",
-      "required": false,
-      "value": "*Busy call later* 🚫"
-    },
-
-    "BAILEYS": {
-      "description": "Baileys library path (don't change unless you know what you're doing)",
-      "required": false,
-      "value": "@whiskeysockets/baileys"
-    },
-
-    "DEV": {
-      "description": "Developer number (additional admin)",
-      "required": false,
-      "value": ""
-    },
-
-    "READ_MESSAGE": {
-      "description": "Auto read messages (true/false)",
-      "required": false,
-      "value": "true"
-    },
-
-    "NEWSLETTER_CHANNELS": {
-      "description": "Newsletter channels to auto-follow",
-      "required": false,
-      "value": "120363421164015033@newsletter"
-    }
-  },
-
-  "formation": {
-    "web": {
-      "quantity": 1,
-      "size": "eco"
     }
   },
 
   "buildpacks": [
     {
       "url": "heroku/nodejs"
-    },
-    {
-      "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"
-    },
-    {
-      "url": "https://github.com/clhuang/heroku-buildpack-webp-binaries.git"
     }
   ]
 }
