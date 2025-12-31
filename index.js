@@ -11,6 +11,7 @@ process.on("unhandledRejection", (reason, p) => {
 
 const axios = require("axios");
 const config = require("./settings");
+const zlib = require("zlib"); // ADD THIS - Required for session decompression
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -108,14 +109,24 @@ const clearTempDir = () => {
 };
 setInterval(clearTempDir, 5 * 60 * 1000);
 
-// Express server (placeholder for future API routes)
-const express = require("express");
-const app = express();
-const port = process.env.PORT || 7860;
+// ==============================
+// 🔐 IMPROVED SESSION MANAGEMENT
+// ==============================
+const botLogger = {
+  log: (type, message) => {
+    const timestamp = new Date().toLocaleString();
+    const colors = {
+      INFO: chalk.cyan,
+      SUCCESS: chalk.green,
+      WARNING: chalk.yellow,
+      ERROR: chalk.red
+    };
+    const colorFn = colors[type] || chalk.white;
+    console.log(colorFn(`[${timestamp}] [${type}] ${message}`));
+  }
+};
 
-// Session authentication
 let malvin;
-
 const sessionDir = path.join(__dirname, "./sessions");
 const credsPath = path.join(sessionDir, "creds.json");
 
@@ -125,34 +136,76 @@ if (!fsSync.existsSync(sessionDir)) {
 
 async function loadSession() {
   try {
-    if (!config.SESSION_ID) {
-      console.log(chalk.red("No SESSION_ID provided - Falling back to QR or pairing code"));
-      return null;
-    }
-
-    if (config.SESSION_ID.startsWith("Xguru~")) {
-      console.log(chalk.yellow("[ ⏳ ] Using base64 session from environment..."));
-      const base64Data = config.SESSION_ID.replace("Xguru~", "");
-      if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
-        throw new Error("Invalid base64 format in SESSION_ID");
-      }
-      const decodedData = Buffer.from(base64Data, "base64");
-      let sessionData;
+    // Clean old sessions if needed
+    if (fsSync.existsSync(credsPath)) {
       try {
-        sessionData = JSON.parse(decodedData.toString("utf-8"));
-      } catch (error) {
-        throw new Error("Failed to parse decoded base64 session data: " + error.message);
+        const credsData = JSON.parse(fsSync.readFileSync(credsPath, 'utf8'));
+        if (!credsData || !credsData.me) {
+          fsSync.unlinkSync(credsPath);
+          botLogger.log('INFO', "♻️ Invalid session removed");
+        }
+      } catch (e) {
+        try {
+          fsSync.unlinkSync(credsPath);
+          botLogger.log('INFO', "♻️ Corrupted session removed");
+        } catch (err) {
+          // Ignore error
+        }
       }
-      // DON'T save to file, just return the session data
-      console.log(chalk.green("[ ✅ ] Base64 session loaded from environment"));
-      return sessionData;
-    } else {
-      throw new Error("Invalid SESSION_ID format. Use 'Xguru~' for base64");
     }
-  } catch (error) {
-    console.error(chalk.red("❌ Error loading session:", error.message));
-    console.log(chalk.green("Will attempt QR code or pairing code login"));
-    return null;
+    
+    if (!config.SESSION_ID || typeof config.SESSION_ID !== 'string') {
+      botLogger.log('WARNING', "SESSION_ID missing, using QR");
+      return false;
+    }
+    
+    // Check for both "xguru~" (new format) and "Xguru~" (old format)
+    const sessionLower = config.SESSION_ID.toLowerCase();
+    let header, b64data;
+    
+    if (sessionLower.startsWith("xguru~")) {
+      [header, b64data] = config.SESSION_ID.split('~');
+      if (!b64data) {
+        botLogger.log('ERROR', "Invalid session format - no data after prefix");
+        return false;
+      }
+      
+      try {
+        // Try decompression (new format)
+        const cleanB64 = b64data.replace(/\.\.\./g, '');
+        const compressedData = Buffer.from(cleanB64, 'base64');
+        const decompressedData = zlib.gunzipSync(compressedData);
+        fsSync.writeFileSync(credsPath, decompressedData, "utf8");
+        botLogger.log('SUCCESS', "✅ Compressed session loaded successfully");
+        return true;
+      } catch (compressionError) {
+        // If decompression fails, try as plain base64
+        botLogger.log('INFO', "Trying as plain base64 session...");
+        try {
+          const cleanB64 = b64data.replace(/\.\.\./g, '');
+          if (!/^[A-Za-z0-9+/=]+$/.test(cleanB64)) {
+            throw new Error("Invalid base64 format");
+          }
+          const decodedData = Buffer.from(cleanB64, "base64");
+          
+          // Validate JSON
+          JSON.parse(decodedData.toString("utf-8"));
+          
+          fsSync.writeFileSync(credsPath, decodedData);
+          botLogger.log('SUCCESS', "✅ Base64 session loaded successfully");
+          return true;
+        } catch (base64Error) {
+          botLogger.log('ERROR', "Failed to decode session: " + base64Error.message);
+          return false;
+        }
+      }
+    } else {
+      botLogger.log('ERROR', "Invalid session format - must start with 'xguru~' or 'Xguru~'");
+      return false;
+    }
+  } catch (e) {
+    botLogger.log('ERROR', "Session Error: " + e.message);
+    return false;
   }
 }
 
@@ -200,12 +253,10 @@ async function connectWithPairing(malvin, useMobile) {
 }
 
 async function connectToWA() {
-  console.log(chalk.cyan("[ 🟠 ] Connecting to WhatsApp ⏳️..."));
+  botLogger.log('INFO', "🟠 Connecting to WhatsApp...");
 
-  const creds = await loadSession();
-  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, "./sessions"), {
-    creds: creds || undefined,
-  });
+  const sessionLoaded = await loadSession();
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
   const { version } = await fetchLatestBaileysVersion();
 
@@ -214,20 +265,17 @@ async function connectToWA() {
 
   malvin = makeWASocket({
     logger: P({ level: "silent" }),
-    printQRInTerminal: !creds && !pairingCode,
-    // Fix: Using a standard browser identity reduces 405 errors
+    printQRInTerminal: !sessionLoaded && !pairingCode,
     browser: ["XGURU", "Chrome", "1.1.0"],
-    // Fix: Set to false to prevent Heroku from crashing during heavy sync
     syncFullHistory: false,
-    // Fix: Added to ensure the bot maintains a stable heartbeat
     keepAliveIntervalMs: 30000,
     auth: state,
     version,
     getMessage: async () => ({}),
-    // Add these for better compatibility:
     retryRequestDelayMs: 1000,
     maxRetries: 10,
-    connectTimeoutMs: 30000,
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000,
   });
 
   if (pairingCode && !state.creds.registered) {
@@ -240,36 +288,45 @@ async function connectToWA() {
     var qr = update.qr;
 
     if (connection === "close") {
-      // Fixed: Remove optional chaining for compatibility
       var reason = null;
       if (lastDisconnect && lastDisconnect.error && lastDisconnect.error.output) {
         reason = lastDisconnect.error.output.statusCode;
       }
       
-      // Initialize reconnect counter if not exists
       if (!global.reconnectAttempts) global.reconnectAttempts = 0;
       global.reconnectAttempts++;
       
-      console.log(chalk.red("[ 🔍 ] Disconnect code: " + (reason || 'unknown')));
-      console.log(chalk.yellow("[ 🔍 ] Reconnect attempt: " + global.reconnectAttempts));
+      botLogger.log('WARNING', "🔍 Disconnect code: " + (reason || 'unknown'));
+      botLogger.log('INFO', "🔍 Reconnect attempt: " + global.reconnectAttempts);
       
-      // Fix: If 405 occurs, it often means the session is dead on the server
+      // Handle different disconnect reasons
       if (reason === DisconnectReason.loggedOut || reason === 405) {
-        console.log(chalk.red("[ 🛑 ] Session invalid (Code 405). Please generate a NEW session ID."));
+        botLogger.log('ERROR', "🛑 Session invalid (Code " + reason + "). Deleting session...");
         if (fsSync.existsSync(credsPath)) {
-          fsSync.unlinkSync(credsPath);
+          try {
+            fsSync.unlinkSync(credsPath);
+            botLogger.log('INFO', "Session file deleted. Please generate a NEW session ID.");
+          } catch (e) {
+            botLogger.log('ERROR', "Failed to delete session: " + e.message);
+          }
         }
         process.exit(1);
+      } else if (reason === DisconnectReason.restartRequired) {
+        botLogger.log('INFO', "🔄 Restart required, reconnecting...");
+        setTimeout(connectToWA, 2000);
+      } else if (reason === DisconnectReason.timedOut) {
+        botLogger.log('WARNING', "⏱️ Connection timed out, retrying...");
+        var delay = Math.min(3000 * Math.pow(1.5, Math.min(global.reconnectAttempts - 1, 5)), 30000);
+        setTimeout(connectToWA, delay);
       } else {
-        // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
+        // Exponential backoff
         var delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
-        console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting in " + (delay/1000) + "s..."));
+        botLogger.log('WARNING', "⏳ Connection lost, reconnecting in " + (delay/1000) + "s...");
         setTimeout(connectToWA, delay);
       }
     } else if (connection === "open") {
-      // Reset counter on successful connection
       global.reconnectAttempts = 0;
-      console.log(chalk.green("[ 🤖 ] XGURU Connected ✅"));
+      botLogger.log('SUCCESS', "🤖 XGURU Connected ✅");
       
       // Load plugins
       var pluginPath = path.join(__dirname, "plugins");
@@ -281,19 +338,17 @@ async function connectToWA() {
             require(path.join(pluginPath, plugin));
           }
         }
-        console.log(chalk.green("[ ✅ ] Plugins loaded successfully"));
+        botLogger.log('SUCCESS', "✅ Plugins loaded successfully");
       } catch (err) {
-        console.error(chalk.red("[ ❌ ] Error loading plugins: " + err.message));
+        botLogger.log('ERROR', "❌ Error loading plugins: " + err.message);
       }
 
       // Send connection message
       try {
-        // Get current date and time
         var currentDate = new Date();
         var date = currentDate.toLocaleDateString();
         var time = currentDate.toLocaleTimeString();
         
-        // Format uptime
         function formatUptime(seconds) {
           var days = Math.floor(seconds / (24 * 60 * 60));
           seconds %= 24 * 60 * 60;
@@ -333,39 +388,38 @@ async function connectToWA() {
             image: { url: "https://files.catbox.moe/atpgij.jpg" },
             caption: upMessage,
           }, { quoted: null }).then(function() {
-            console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
+            botLogger.log('SUCCESS', "📩 Connection notice sent successfully with image");
           }).catch(function(imageError) {
-            console.error(chalk.yellow("[ ⚠️ ] Image failed, sending text-only:"), imageError.message);
+            botLogger.log('WARNING', "⚠️ Image failed, sending text-only: " + imageError.message);
             malvin.sendMessage(jid, { text: upMessage }).then(function() {
-              console.log(chalk.green("[ 📩 ] Connection notice sent successfully as text"));
+              botLogger.log('SUCCESS', "📩 Connection notice sent successfully as text");
             });
           });
         } catch (sendError) {
-          console.error(chalk.red("[ 🔴 ] Error sending connection notice: " + sendError.message));
+          botLogger.log('ERROR', "🔴 Error sending connection notice: " + sendError.message);
         }
       } catch (error) {
-        console.error(chalk.red("[ ❌ ] Error in connection message: " + error.message));
+        botLogger.log('ERROR', "❌ Error in connection message: " + error.message);
       }
 
-      // Follow single newsletter
+      // Follow newsletter
       var newsletterChannel = "120363421164015033@newsletter";
       
       setTimeout(function() {
         try {
-          console.log(chalk.cyan("[ 📡 ] Checking newsletter: " + newsletterChannel));
+          botLogger.log('INFO', "📡 Checking newsletter: " + newsletterChannel);
           
-          // Simpler newsletter follow - just try to follow without checking metadata first
           malvin.newsletterFollow(newsletterChannel).then(function() {
-            console.log(chalk.green("[ ✅ ] Followed newsletter: " + newsletterChannel));
+            botLogger.log('SUCCESS', "✅ Followed newsletter: " + newsletterChannel);
           }).catch(function(error) {
             if (error.message && error.message.includes("already")) {
-              console.log(chalk.yellow("[ 📌 ] Already following newsletter: " + newsletterChannel));
+              botLogger.log('INFO', "📌 Already following newsletter: " + newsletterChannel);
             } else {
-              console.error(chalk.red("[ ❌ ] Failed to follow newsletter " + newsletterChannel + ": " + error.message));
+              botLogger.log('ERROR', "❌ Failed to follow newsletter " + newsletterChannel + ": " + error.message);
             }
           });
         } catch (error) {
-          console.error(chalk.red("[ ❌ ] Error with newsletter: " + error.message));
+          botLogger.log('ERROR', "❌ Error with newsletter: " + error.message);
         }
       }, 3000);
     }
@@ -378,8 +432,9 @@ async function connectToWA() {
 
   malvin.ev.on("creds.update", saveCreds);
 
-  // =====================================
-	 
+  // Rest of your event handlers remain the same...
+  // (keeping all the existing event handlers)
+
   malvin.ev.on('messages.update', async updates => {
     for (const update of updates) {
       if (update.update.message === null) {
@@ -390,13 +445,12 @@ async function connectToWA() {
   });
 
   // anti-call
-
   malvin.ev.on('call', async (calls) => {
     try {
       if (config.ANTI_CALL !== 'true') return;
 
       for (const call of calls) {
-        if (call.status !== 'offer') continue; // Only respond on call offer
+        if (call.status !== 'offer') continue;
 
         const id = call.id;
         const from = call.from;
@@ -412,17 +466,12 @@ async function connectToWA() {
     }
   });	
   
-  //=========WELCOME & GOODBYE =======
-  
   malvin.ev.on('presence.update', async (update) => {
     await PresenceControl(malvin, update);
   });
 
-  // always Online 
-
   malvin.ev.on("presence.update", (update) => PresenceControl(malvin, update));
 
-  
   BotActivityFilter(malvin);	
   
   /// READ STATUS       
@@ -432,9 +481,9 @@ async function connectToWA() {
     mek.message = (getContentType(mek.message) === 'ephemeralMessage') 
     ? mek.message.ephemeralMessage.message 
     : mek.message;
-    //console.log("New Message Detected:", JSON.stringify(mek, null, 2));
+    
     if (config.READ_MESSAGE === 'true') {
-      await malvin.readMessages([mek.key]);  // Mark message as read
+      await malvin.readMessages([mek.key]);
       console.log(`Marked message from ${mek.key.remoteJid} as read.`);
     }
     if(mek.message.viewOnceMessageV2)
@@ -553,9 +602,7 @@ async function connectToWA() {
       return;
     }
 
-    //==========public react============//
-  
-    // Auto React for all messages (public and owner)
+    // Auto React for all messages
     if (!isReact && config.AUTO_REACT === 'true') {
       const reactions = [
         '🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', 
@@ -579,24 +626,19 @@ async function connectToWA() {
       m.react(randomReaction);
     }
 
-    // owner react
-
     // Owner React
     if (!isReact && senderNumber === botNumber) {
       if (config.OWNER_REACT === 'true') {
         const reactions = [
           '🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '👩‍🦰', '🧑‍🦰', '👩‍⚕️', '🧑‍⚕️', '🧕', '👩‍🏫', '👨‍💻', '👰‍♀', '🦹🏻‍♀️', '🧟‍♀️', '🧟', '🧞‍♀️', '🧞', '🙅‍♀️', '💁‍♂️', '💁‍♀️', '🙆‍♀️', '🙋‍♀️', '🤷', '🤷‍♀️', '🤦', '🤦‍♀️', '💇‍♀️', '💇', '💃', '🚶‍♀️', '🚶', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻 ', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇵🇰', '💜', '💙', '🌝', '🖤', '🎎', '🎏', '🎐', '⚽', '🧣', '🌿', '⛈️', '🌦️', '🌚', '🌝', '🙈', '🙉', '🦖', '🐤', '🎗️', '🥇', '👾', '🔫', '🐝', '🦋', '🍓', '🍫', '🍭', '🧁', '🧃', '🍿', '🍻', '🛬', '🫀', '🫠', '🐍', '🥀', '🌸', '🏵️', '🌻', '🍂', '🍁', '🍄', '🌾', '🌿', '🌱', '🍀', '🧋', '💒', '🏩', '🏗️', '🏰', '🏪', '🏟️', '🎗️', '🥇', '⛳', '📟', '🏮', '📍', '🔮', '🧿', '♻️', '⛵', '🚍', '🚔', '🛳️', '🚆', '🚤', '🚕', '🛺', '🚝', '🚈', '🏎️', '🏍️', '🛵', '🥂', '🍾', '🍧', '🐣', '🐥', '🦄', '🐯', '🐦', '🐬', '🐋', '🦆', '💈', '⛲', '⛩️', '🎈', '🎋', '🪀', '🧩', '👾', '💸', '💎', '🧮', '👒', '🧢', '🎀', '🧸', '👑', '〽️', '😳', '💀', '☠️', '👻', '🔥', '♥️', '👀', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🤹', '🤹‍♀️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰', '🧳', '🌉', '🌁', '🛤️', '🛣️', '🏚️', '🏠', '🏡', '🧀', '🍥', '🍮', '🍰', '🍦', '🍨', '🍧', '🥠', '🍡', '🧂', '🍯', '🍪', '🍩', '🍭', '🥮', '🍡'
         ];
-        const randomReaction = reactions[Math.floor(Math.random() * reactions.length)]; // 
+        const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
         m.react(randomReaction);
       }
     }
 	            	  
-    // custum react settings        
-                        
-    // Custom React for all messages (public and owner)
+    // Custom React
     if (!isReact && config.CUSTOM_REACT === 'true') {
-      // Use custom emojis from the configuration (fallback to default if not set)
       const reactions = (config.CUSTOM_REACT_EMOJIS || '🥲,😂,👍🏻,🙂,😔').split(',');
       const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
       m.react(randomReaction);
@@ -604,15 +646,12 @@ async function connectToWA() {
 
     if (!isReact && senderNumber === botNumber) {
       if (config.HEART_REACT === 'true') {
-        // Use custom emojis from the configuration
         const reactions = (config.CUSTOM_REACT_EMOJIS || '❤️,🧡,💛,💚,💚').split(',');
         const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
         m.react(randomReaction);
       }
     }
         
-    // ban users 
-
     // Banned users check
     const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8"));
     const isBanned = bannedUsers.includes(sender);
@@ -641,8 +680,7 @@ async function connectToWA() {
       return;
     }
 	  
-	  // take commands 
-                 
+    // Handle commands
     const events = require('./malvin')
     const cmdName = isCmd ? body.slice(1).trim().split(" ")[0].toLowerCase() : false;
     if (isCmd) {
@@ -676,7 +714,8 @@ async function connectToWA() {
       }
     });
   });
-  //===================================================   
+  
+  // All the helper functions remain the same
   malvin.decodeJid = jid => {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
@@ -689,7 +728,7 @@ async function connectToWA() {
       );
     } else return jid;
   };
-  //===================================================
+
   malvin.copyNForward = async(jid, message, forceForward = false, options = {}) => {
     let vtype
     if (options.readViewOnce) {
@@ -724,7 +763,7 @@ async function connectToWA() {
     await malvin.relayMessage(jid, waMessage.message, { messageId: waMessage.key.id })
     return waMessage
   }
-  //=================================================
+
   malvin.downloadAndSaveMediaMessage = async(message, filename, attachExtension = true) => {
     let quoted = message.msg ? message.msg : message
     let mime = (message.msg || message).mimetype || ''
@@ -736,11 +775,10 @@ async function connectToWA() {
     }
     let type = await FileType.fromBuffer(buffer)
     trueFileName = attachExtension ? (filename + '.' + type.ext) : filename
-    // save to file
     await fs.writeFileSync(trueFileName, buffer)
     return trueFileName
   }
-  //=================================================
+
   malvin.downloadMediaMessage = async(message) => {
     let mime = (message.msg || message).mimetype || ''
     let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
@@ -752,16 +790,7 @@ async function connectToWA() {
   
     return buffer
   }
-  
-  /**
-  *
-  * @param {*} jid
-  * @param {*} message
-  * @param {*} forceForward
-  * @param {*} options
-  * @returns
-  */
-  //================================================
+
   malvin.sendFileUrl = async (jid, url, caption, quoted, options = {}) => {
     let mime = '';
     let res = await axios.head(url)
@@ -783,9 +812,8 @@ async function connectToWA() {
       return malvin.sendMessage(jid, { audio: await getBuffer(url), caption: caption, mimetype: 'audio/mpeg', ...options }, { quoted: quoted, ...options })
     }
   }
-  //==========================================================
+
   malvin.cMod = (jid, copy, text = '', sender = malvin.user.id, options = {}) => {
-    //let copy = message.toJSON()
     let mtype = Object.keys(copy.message)[0]
     let isEphemeral = mtype === 'ephemeralMessage'
     if (isEphemeral) {
@@ -809,17 +837,10 @@ async function connectToWA() {
   
     return proto.WebMessageInfo.fromObject(copy)
   }
-  
-  /**
-  *
-  * @param {*} path
-  * @returns
-  */
-  //=====================================================
+
   malvin.getFile = async(PATH, save) => {
     let res
     let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split `,` [1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fs.existsSync(PATH) ? (filename = PATH, fs.readFileSync(PATH)) : typeof PATH === 'string' ? PATH : Buffer.alloc(0)
-    //if (!Buffer.isBuffer(data)) throw new TypeError('Result is not a buffer')
     let type = await FileType.fromBuffer(data) || {
       mime: 'application/octet-stream',
       ext: '.bin'
@@ -834,7 +855,7 @@ async function connectToWA() {
       data
     }
   }
-  //=====================================================
+
   malvin.sendFile = async(jid, PATH, fileName, quoted = {}, options = {}) => {
     let types = await malvin.getFile(PATH, true)
     let { filename, size, ext, mime, data } = types
@@ -861,11 +882,11 @@ async function connectToWA() {
     }, { quoted, ...options })
     return fs.promises.unlink(pathFile)
   }
-  //=====================================================
+
   malvin.parseMention = async(text) => {
     return [...text.matchAll(/@([0-9]{5,16}|0)/g)].map(v => v[1] + '@s.whatsapp.net')
   }
-  //=====================================================
+
   malvin.sendMedia = async(jid, path, fileName = '', caption = '', quoted = '', options = {}) => {
     let types = await malvin.getFile(path, true)
     let { mime, ext, res, data, filename } = types
@@ -896,14 +917,7 @@ async function connectToWA() {
     }, { quoted, ...options })
     return fs.promises.unlink(pathFile)
   }
-  /**
-  *
-  * @param {*} message
-  * @param {*} filename
-  * @param {*} attachExtension
-  * @returns
-  */
-  //=====================================================
+
   malvin.sendVideoAsSticker = async (jid, buff, options = {}) => {
     let buffer;
     if (options && (options.packname || options.author)) {
@@ -917,7 +931,7 @@ async function connectToWA() {
       options
     );
   };
-  //=====================================================
+
   malvin.sendImageAsSticker = async (jid, buff, options = {}) => {
     let buffer;
     if (options && (options.packname || options.author)) {
@@ -931,53 +945,16 @@ async function connectToWA() {
       options
     );
   };
-  /**
-  *
-  * @param {*} jid
-  * @param {*} path
-  * @param {*} quoted
-  * @param {*} options
-  * @returns
-  */
-  //=====================================================
+
   malvin.sendTextWithMentions = async(jid, text, quoted, options = {}) => malvin.sendMessage(jid, { text: text, contextInfo: { mentionedJid: [...text.matchAll(/@(\d{0,16})/g)].map(v => v[1] + '@s.whatsapp.net') }, ...options }, { quoted })
-  
-  /**
-  *
-  * @param {*} jid
-  * @param {*} path
-  * @param {*} quoted
-  * @param {*} options
-  * @returns
-  */
-  //=====================================================
+
   malvin.sendImage = async(jid, path, caption = '', quoted = '', options) => {
     let buffer = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split `,` [1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
     return await malvin.sendMessage(jid, { image: buffer, caption: caption, ...options }, { quoted })
   }
-  
-  /**
-  *
-  * @param {*} jid
-  * @param {*} path
-  * @param {*} caption
-  * @param {*} quoted
-  * @param {*} options
-  * @returns
-  */
-  //=====================================================
+
   malvin.sendText = (jid, text, quoted = '', options) => malvin.sendMessage(jid, { text: text, ...options }, { quoted })
-  
-  /**
-  *
-  * @param {*} jid
-  * @param {*} path
-  * @param {*} caption
-  * @param {*} quoted
-  * @param {*} options
-  * @returns
-  */
-  //=====================================================
+
   malvin.sendButtonText = (jid, buttons = [], text, footer, quoted = '', options = {}) => {
     let buttonMessage = {
       text,
@@ -986,10 +963,9 @@ async function connectToWA() {
       headerType: 2,
       ...options
     }
-    //========================================================================================================================================
     malvin.sendMessage(jid, buttonMessage, { quoted, ...options })
   }
-  //=====================================================
+
   malvin.send5ButImg = async(jid, text = '', footer = '', img, but = [], thumb, options = {}) => {
     let message = await prepareWAMessageMedia({ image: img, jpegThumbnail: thumb }, { upload: malvin.waUploadToServer })
     var template = generateWAMessageFromContent(jid, proto.Message.fromObject({
@@ -1004,17 +980,7 @@ async function connectToWA() {
     }), options)
     malvin.relayMessage(jid, template.message, { messageId: template.key.id })
   }
-  
-  /**
-  *
-  * @param {*} jid
-  * @param {*} buttons
-  * @param {*} caption
-  * @param {*} footer
-  * @param {*} quoted
-  * @param {*} options
-  */
-  //=====================================================
+
   malvin.getName = (jid, withoutContact = false) => {
     id = malvin.decodeJid(jid);
 
@@ -1057,7 +1023,6 @@ async function connectToWA() {
     );
   };
 
-  // Vcard Functionality
   malvin.sendContact = async (jid, kon, quoted = '', opts = {}) => {
     let list = [];
     for (let i of kon) {
@@ -1089,7 +1054,6 @@ async function connectToWA() {
     );
   };
 
-  // Status aka brio
   malvin.setStatus = status => {
     malvin.query({
       tag: 'iq',
@@ -1111,20 +1075,24 @@ async function connectToWA() {
   malvin.serializeM = mek => sms(malvin, mek, store);
 }
 
-//web server
+// Express server
+const express = require("express");
+const app = express();
+const port = process.env.PORT || 7860;
 
 app.use(express.static(path.join(__dirname, "lib")));
 
 app.get("/", (req, res) => {
   res.redirect("/marisel.html");
 });
+
 app.listen(port, () =>
-  console.log(chalk.cyan(`
-╭──[ hello user ]─
-│🤗 hi your bot is live 
-╰──────────────`))
+  botLogger.log('INFO', `Web server running on port ${port}`)
 );
 
 setTimeout(() => {
   connectToWA();
-}, 4000);
+}, 4000
+
+
+		   //https://github.com/SilvaTechB
