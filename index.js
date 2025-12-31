@@ -130,25 +130,25 @@ async function loadSession() {
       return null;
     }
 
-if (config.SESSION_ID.startsWith("Xguru~")) {
-  console.log(chalk.yellow("[ ⏳ ] Decoding base64 session..."));
-  const base64Data = config.SESSION_ID.replace("Xguru~", "");
-  if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
-    throw new Error("Invalid base64 format in SESSION_ID");
-  }
-  const decodedData = Buffer.from(base64Data, "base64");
-  let sessionData;
-  try {
-    sessionData = JSON.parse(decodedData.toString("utf-8"));
-  } catch (error) {
-    throw new Error("Failed to parse decoded base64 session data: " + error.message);
-  }
-  fsSync.writeFileSync(credsPath, decodedData);
-  console.log(chalk.green("[ ✅ ] Base64 session decoded and saved successfully"));
-  return sessionData;
-} else {
-  throw new Error("Invalid SESSION_ID format. Use 'Xguru~' for base64");
-}
+    if (config.SESSION_ID.startsWith("Xguru~")) {
+      console.log(chalk.yellow("[ ⏳ ] Using base64 session from environment..."));
+      const base64Data = config.SESSION_ID.replace("Xguru~", "");
+      if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
+        throw new Error("Invalid base64 format in SESSION_ID");
+      }
+      const decodedData = Buffer.from(base64Data, "base64");
+      let sessionData;
+      try {
+        sessionData = JSON.parse(decodedData.toString("utf-8"));
+      } catch (error) {
+        throw new Error("Failed to parse decoded base64 session data: " + error.message);
+      }
+      // DON'T save to file, just return the session data
+      console.log(chalk.green("[ ✅ ] Base64 session loaded from environment"));
+      return sessionData;
+    } else {
+      throw new Error("Invalid SESSION_ID format. Use 'Xguru~' for base64");
+    }
   } catch (error) {
     console.error(chalk.red("❌ Error loading session:", error.message));
     console.log(chalk.green("Will attempt QR code or pairing code login"));
