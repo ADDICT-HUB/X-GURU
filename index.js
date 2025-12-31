@@ -147,17 +147,27 @@ async function loadSession() {
         console.log(chalk.green(`[ ✅ ] Session loaded successfully. Registered: ${sessionData.registered || false}`));
         console.log(chalk.cyan(`[ 📱 ] Account: ${sessionData.me?.name || 'Unknown'}`));
         
-        // IMPORTANT: Convert string Buffers back to Buffer objects
-        function convertStringBuffers(obj) {
+        // FIX: Convert all base64 string buffers to Buffer objects
+        function fixBuffers(obj) {
           if (!obj || typeof obj !== 'object') return obj;
           
-          if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
+          // Check if it's a Buffer object stored as {type: "Buffer", data: [...]}
+          if (obj.type === "Buffer" && Array.isArray(obj.data)) {
             return Buffer.from(obj.data);
           }
           
-          for (const key in obj) {
-            if (obj[key] && typeof obj[key] === 'object') {
-              obj[key] = convertStringBuffers(obj[key]);
+          // Check if it's a base64 string that should be a Buffer
+          if (typeof obj === 'string' && obj.length > 100 && /^[A-Za-z0-9+/=]+$/.test(obj)) {
+            // This might be a base64 encoded Buffer
+            return Buffer.from(obj, 'base64');
+          }
+          
+          // Recursively process object properties
+          if (typeof obj === 'object') {
+            for (const key in obj) {
+              if (obj.hasOwnProperty(key)) {
+                obj[key] = fixBuffers(obj[key]);
+              }
             }
           }
           
@@ -165,7 +175,12 @@ async function loadSession() {
         }
         
         // Convert all Buffer data
-        const processedSession = convertStringBuffers(sessionData);
+        const processedSession = fixBuffers(sessionData);
+        
+        // Specific fix for private keys that might be strings
+        if (processedSession.privateKey && typeof processedSession.privateKey === 'string') {
+          processedSession.privateKey = Buffer.from(processedSession.privateKey, 'base64');
+        }
         
         return processedSession;
       } catch (parseError) {
