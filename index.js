@@ -534,6 +534,14 @@ const upMessage = `
     mek = mek.messages[0];
     if (!mek.message) return;
     
+    // ========== FIX ADDED HERE ==========
+    // Skip if message is from the bot itself (to prevent reacting to own messages)
+    if (mek.key.fromMe) {
+      console.log('Skipping bot\'s own message');
+      return;
+    }
+    // ========== END FIX ==========
+    
     // Fix message structure
     mek.message = (getContentType(mek.message) === 'ephemeralMessage') 
       ? mek.message.ephemeralMessage.message 
@@ -554,7 +562,7 @@ const upMessage = `
     }
 
     // Newsletter Reaction
-    const newsletterJids = ["120363299029326322@newsletter"];
+    const newsletterJids = ["120363421164015033@newsletter"];
     const emojis = ["😂", "🥺", "👍", "☺️", "🥹", "♥️", "🩵"];
 
     if (mek.key && newsletterJids.includes(mek.key.remoteJid)) {
@@ -639,6 +647,12 @@ const upMessage = `
 
     // Auto React list
     const reactionsList = ['🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '🧕', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'];
+
+    // ========== FIX ADDED HERE ==========
+    // Add command check BEFORE auto-react sections
+    // Only auto-react if message is a command OR if config explicitly allows it
+    const shouldAutoReact = config.AUTO_REACT === 'true' && isCmd;
+    // ========== END FIX ==========
 
     // AUTO_REACT - React to all messages
     if (!isReact && config.AUTO_REACT === 'true') {
@@ -766,6 +780,14 @@ const upMessage = `
     console.log('- Args:', args);
     console.log('- Prefix used:', prefix);
     console.log('- Full command string:', body);
+
+    // ========== FIX ADDED HERE ==========
+    // Only process if it's a command
+    if (!isCmd) {
+      console.log('Not a command, ignoring message');
+      return;
+    }
+    // ========== END FIX ==========
 
     // ONLY check for commands if we should process this message
     if (isCmd && cmdName) {
