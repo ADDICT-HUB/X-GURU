@@ -123,6 +123,225 @@ if (!fsSync.existsSync(sessionDir)) {
   fsSync.mkdirSync(sessionDir, { recursive: true });
 }
 
+// ==================== SESSION AUTO-SAVE FUNCTIONS ====================
+
+// Function to save session to Heroku environment variable
+async function saveSessionToEnv(sessionData) {
+  try {
+    if (!sessionData) {
+      console.log(chalk.yellow("[ ⚠️ ] No session data to save"));
+      return false;
+    }
+
+    // Convert session to base64 string with Xguru~ prefix
+    const sessionString = JSON.stringify(sessionData);
+    const base64Session = Buffer.from(sessionString).toString('base64');
+    const envSessionString = `Xguru~${base64Session}`;
+
+    console.log(chalk.cyan("[ 💾 ] Saving session to environment..."));
+    console.log(chalk.cyan(`[ 📏 ] Session size: ${envSessionString.length} chars`));
+    
+    // Save to file backup
+    const backupPath = path.join(__dirname, 'session_backup.txt');
+    await fs.writeFile(backupPath, envSessionString, 'utf8');
+    console.log(chalk.green("[ ✅ ] Session backed up to file"));
+
+    // Update Heroku environment variable
+    try {
+      // Method 1: Update process.env (for current session)
+      process.env.SESSION_ID = envSessionString;
+      
+      // Method 2: Try to update Heroku config
+      const { execSync } = require('child_process');
+      execSync(`heroku config:set SESSION_ID="${envSessionString.replace(/"/g, '\\"')}"`, {
+        stdio: 'pipe'
+      });
+      console.log(chalk.green("[ ☁️ ] Heroku session updated successfully"));
+      
+      // Also save to .env file for local development
+      const envPath = path.join(__dirname, '.env');
+      if (fsSync.existsSync(envPath)) {
+        let envContent = await fs.readFile(envPath, 'utf8');
+        if (envContent.includes('SESSION_ID=')) {
+          envContent = envContent.replace(/SESSION_ID=.*/g, `SESSION_ID=${envSessionString}`);
+        } else {
+          envContent += `\nSESSION_ID=${envSessionString}`;
+        }
+        await fs.writeFile(envPath, envContent, 'utf8');
+        console.log(chalk.green("[ 📁 ] Local .env updated"));
+      }
+      
+      return true;
+    } catch (herokuError) {
+      console.log(chalk.yellow("[ ℹ️ ] Heroku CLI not available, session saved locally"));
+      console.log(chalk.cyan("[ 📋 ] Copy this session string manually:"));
+      console.log(chalk.green(envSessionString.substring(0, 100) + "..."));
+      console.log(chalk.cyan("[ 💡 ] Run: heroku config:set SESSION_ID=\"your_session_string\""));
+      return true;
+    }
+  } catch (error) {
+    console.error(chalk.red("[ ❌ ] Error saving session:"), error.message);
+    return false;
+  }
+}
+
+// Function to get current session as string
+function getCurrentSessionString() {
+  try {
+    if (malvin && malvin.authState && malvin.authState.creds) {
+      const sessionData = malvin.authState.creds;
+      const sessionString = JSON.stringify(sessionData);
+      const base64Session = Buffer.from(sessionString).toString('base64');
+      return `Xguru~${base64Session}`;
+    }
+  } catch (error) {
+    console.error(chalk.red("[ ❌ ] Error getting current session:"), error.message);
+  }
+  return null;
+}
+
+// Sleep function utility
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Session health check
+async function checkSessionHealth() {
+  try {
+    const session = await loadSession();
+    if (!session) {
+      console.log(chalk.yellow("[ ⚠️ ] No valid session - QR code will be shown"));
+      return false;
+    }
+    
+    const now = Date.now();
+    const sessionAge = now - (session.registration || now);
+    const daysOld = Math.floor(sessionAge / (1000 * 60 * 60 * 24));
+    
+    console.log(chalk.cyan(`[ 📊 ] Session Health Check:`));
+    console.log(chalk.cyan(`[ 👤 ] Account: ${session.me?.name || 'Unknown'}`));
+    console.log(chalk.cyan(`[ 📱 ] Phone: ${session.me?.id || 'Unknown'}`));
+    console.log(chalk.cyan(`[ 🔐 ] Registered: ${session.registered ? '✅' : '❌'}`));
+    console.log(chalk.cyan(`[ 🕐 ] Age: ${daysOld} days`));
+    
+    if (daysOld > 6) {
+      console.log(chalk.yellow("[ ⚠️ ] Session is getting old (>6 days)"));
+    }
+    
+    if (!session.registered) {
+      console.log(chalk.red("[ ❌ ] Session not registered - needs QR"));
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(chalk.red("[ ❌ ] Session health check failed:"), error.message);
+    return false;
+  }
+}
+
+// Add session management commands
+function addSessionCommands() {
+  // Check if global.commands exists, if not create it
+  if (!global.commands) global.commands = {};
+  
+  // Export current session via message
+  global.commands.session = {
+    pattern: 'session',
+    desc: 'Get current session string',
+    category: 'owner',
+    react: '📱',
+    function: async (malvin, mek, m, params) => {
+      const { from, sender, isCreator, reply } = params;
+      
+      if (!isCreator) {
+        return reply('❌ Owner only command!');
+      }
+      
+      const sessionString = getCurrentSessionString();
+      if (!sessionString) {
+        return reply('❌ No active session found');
+      }
+      
+      // Save to file first
+      const sessionFile = path.join(__dirname, 'current_session.txt');
+      await fs.writeFile(sessionFile, sessionString, 'utf8');
+      
+      // Send part of session
+      reply(`📱 Current Session (${sessionString.length} chars):\n\`\`\`\n${sessionString.substring(0, 200)}...\n\`\`\`\n\n✅ Full session saved to: current_session.txt\n\n💡 Update Heroku: heroku config:set SESSION_ID="${sessionString}"`);
+      
+      console.log(chalk.green(`[ 📱 ] Session exported to ${sender}`));
+    }
+  };
+
+  global.commands.savesession = {
+    pattern: 'savesession',
+    desc: 'Save current session to environment',
+    category: 'owner',
+    react: '💾',
+    function: async (malvin, mek, m, params) => {
+      const { from, sender, isCreator, reply } = params;
+      
+      if (!isCreator) {
+        return reply('❌ Owner only command!');
+      }
+      
+      if (!malvin.authState.creds) {
+        return reply('❌ No active session found');
+      }
+      
+      reply('💾 Saving session to environment...');
+      
+      const success = await saveSessionToEnv(malvin.authState.creds);
+      if (success) {
+        reply('✅ Session saved successfully!\n\n🔄 Restart bot to use new session.');
+      } else {
+        reply('❌ Failed to save session');
+      }
+    }
+  };
+
+  global.commands.clearsession = {
+    pattern: 'clearsession',
+    desc: 'Clear current session and restart',
+    category: 'owner',
+    react: '🗑️',
+    function: async (malvin, mek, m, params) => {
+      const { from, sender, isCreator, reply } = params;
+      
+      if (!isCreator) {
+        return reply('❌ Owner only command!');
+      }
+      
+      reply('🗑️ Clearing session and restarting...');
+      
+      // Clear session file
+      const sessionDir = path.join(__dirname, './sessions');
+      if (fsSync.existsSync(sessionDir)) {
+        const files = fsSync.readdirSync(sessionDir);
+        files.forEach(file => {
+          if (file.endsWith('.json')) {
+            fsSync.unlinkSync(path.join(sessionDir, file));
+          }
+        });
+      }
+      
+      // Clear env var
+      try {
+        const { execSync } = require('child_process');
+        execSync('heroku config:unset SESSION_ID', { stdio: 'pipe' });
+      } catch (e) {
+        // Ignore if heroku CLI not available
+      }
+      
+      // Restart after 2 seconds
+      setTimeout(() => {
+        process.exit(0);
+      }, 2000);
+    }
+  };
+}
+
 async function loadSession() {
   try {
     if (!config.SESSION_ID) {
@@ -316,6 +535,31 @@ async function connectToWA() {
       // Reset counter on successful connection
       global.reconnectAttempts = 0;
       console.log(chalk.green("[ 🤖 ] XGURU Connected ✅"));
+      
+      // AUTO-SAVE SESSION ON SUCCESSFUL CONNECTION
+      setTimeout(async () => {
+        try {
+          if (state.creds && state.creds.registered) {
+            console.log(chalk.cyan("[ 💾 ] Auto-saving valid session..."));
+            
+            // Wait a bit to ensure connection is stable
+            await sleep(5000);
+            
+            const success = await saveSessionToEnv(state.creds);
+            if (success) {
+              console.log(chalk.green("[ ✅ ] Session auto-saved successfully!"));
+              console.log(chalk.cyan("[ 🔧 ] Next restart will use saved session"));
+            } else {
+              console.log(chalk.yellow("[ ⚠️ ] Session auto-save failed (continuing anyway)"));
+            }
+          }
+        } catch (saveError) {
+          console.error(chalk.red("[ ❌ ] Error in auto-save:"), saveError.message);
+        }
+      }, 10000); // Save after 10 seconds
+      
+      // Initialize session commands
+      addSessionCommands();
       
       // Load plugins
       var pluginPath = path.join(__dirname, "plugins");
@@ -1017,11 +1261,11 @@ async function connectToWA() {
   /**
   *
   * @param {*} jid
-  * @param {*} path
+  * @param {*} buttons
   * @param {*} caption
+  * @param {*} footer
   * @param {*} quoted
   * @param {*} options
-  * @returns
   */
   //=====================================================
   malvin.sendButtonText = (jid, buttons = [], text, footer, quoted = '', options = {}) => {
@@ -1170,6 +1414,11 @@ app.listen(port, () =>
 │🤗 hi your bot is live 
 ╰──────────────`))
 );
+
+// Call session health check after startup
+setTimeout(() => {
+  checkSessionHealth();
+}, 3000);
 
 setTimeout(() => {
   connectToWA();
