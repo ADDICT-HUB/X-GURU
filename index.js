@@ -123,183 +123,72 @@ if (!fsSync.existsSync(sessionDir)) {
   fsSync.mkdirSync(sessionDir, { recursive: true });
 }
 
-// Add debug routes FIRST (before loadSession function)
-app.get("/debugsession", async (req, res) => {
-  try {
-    console.log(chalk.cyan("[ 🔍 ] DEBUG: Checking session from environment..."));
-    
-    // 1. Show raw SESSION_ID from config
-    const rawSessionId = config.SESSION_ID;
-    console.log(chalk.yellow(`[ 📏 ] Raw SESSION_ID length: ${rawSessionId ? rawSessionId.length : 0}`));
-    console.log(chalk.yellow(`[ 🔤 ] Starts with Xguru~: ${rawSessionId ? rawSessionId.startsWith('Xguru~') : false}`));
-    
-    if (!rawSessionId || !rawSessionId.startsWith('Xguru~')) {
-      return res.json({ error: "Invalid session format" });
-    }
-    
-    // 2. Decode and show session data
-    const base64Data = rawSessionId.replace("Xguru~", "");
-    console.log(chalk.yellow(`[ 📏 ] Base64 length: ${base64Data.length}`));
-    
-    const decodedData = Buffer.from(base64Data, "base64").toString("utf-8");
-    console.log(chalk.yellow(`[ 📏 ] Decoded JSON length: ${decodedData.length}`));
-    
-    const sessionData = JSON.parse(decodedData);
-    
-    // 3. Show critical session info
-    res.json({
-      success: true,
-      sessionInfo: {
-        registered: sessionData.registered || false,
-        accountName: sessionData.me?.name || "Unknown",
-        platform: sessionData.platform || "Unknown",
-        registrationId: sessionData.registrationId,
-        noiseKey: sessionData.noiseKey ? "Present" : "Missing",
-        signedIdentityKey: sessionData.signedIdentityKey ? "Present" : "Missing",
-        signedPreKey: sessionData.signedPreKey ? "Present" : "Missing",
-        privateKey: sessionData.privateKey ? "Present" : "Missing",
-        hasKeys: !!sessionData.keys,
-        sessionLength: rawSessionId.length
-      },
-      // First 200 chars of session for verification
-      sessionPreview: rawSessionId.substring(0, 200) + "..."
-    });
-    
-  } catch (error) {
-    console.error(chalk.red("[ ❌ ] DEBUG Error:"), error.message);
-    res.json({ 
-      success: false, 
-      error: error.message,
-      stack: error.stack 
-    });
-  }
-});
-
-app.get("/checksession", (req, res) => {
-  const sessionId = config.SESSION_ID || "Not set";
-  
-  res.json({
-    sessionLength: sessionId ? sessionId.length : 0,
-    first100: sessionId ? sessionId.substring(0, 100) : "",
-    last100: sessionId ? sessionId.substring(sessionId.length - 100) : "",
-    format: sessionId ? (sessionId.startsWith("Xguru~") ? "Correct" : "Wrong") : "Empty"
-  });
-});
-
 async function loadSession() {
   try {
-    console.log(chalk.cyan("[ 🔍 ] DEBUG loadSession called"));
-    console.log(chalk.yellow(`[ 📋 ] Config SESSION_ID exists: ${!!config.SESSION_ID}`));
-    
     if (!config.SESSION_ID) {
-      console.log(chalk.red("[ ❌ ] DEBUG: No SESSION_ID in config"));
+      console.log(chalk.yellow("[ ℹ️ ] No SESSION_ID provided - Will use QR code"));
       return null;
     }
 
-    // Force read from environment every time
-    const sessionId = String(config.SESSION_ID).trim();
-    console.log(chalk.yellow(`[ 📏 ] Session ID length: ${sessionId.length}`));
-    console.log(chalk.yellow(`[ 🔤 ] First 50 chars: ${sessionId.substring(0, 50)}...`));
-    console.log(chalk.yellow(`[ 🔤 ] Last 50 chars: ...${sessionId.substring(sessionId.length - 50)}`));
-
-    if (sessionId.startsWith("Xguru~")) {
-      console.log(chalk.green("[ ✅ ] DEBUG: Valid Xguru~ format detected"));
-      const base64Data = sessionId.replace("Xguru~", "");
+    if (config.SESSION_ID.startsWith("Xguru~")) {
+      console.log(chalk.yellow("[ ⏳ ] Loading session from environment..."));
+      const base64Data = config.SESSION_ID.replace("Xguru~", "");
       
       if (!base64Data) {
-        console.log(chalk.red("[ ❌ ] DEBUG: Empty base64 data"));
+        console.log(chalk.red("[ ❌ ] Empty session data"));
         return null;
       }
 
       try {
-        console.log(chalk.yellow(`[ ⏳ ] DEBUG: Decoding base64 (${base64Data.length} chars)`));
+        // Decode base64
+        const decodedData = Buffer.from(base64Data, "base64");
+        const sessionData = JSON.parse(decodedData.toString("utf-8"));
         
-        // METHOD 1: Try direct parse first
-        const decodedData = Buffer.from(base64Data, "base64").toString("utf-8");
-        console.log(chalk.yellow(`[ 📄 ] DEBUG: Decoded to ${decodedData.length} chars`));
+        console.log(chalk.green(`[ ✅ ] Session loaded successfully`));
+        console.log(chalk.cyan(`[ 📱 ] Account: ${sessionData.me?.name || 'Unknown'}`));
+        console.log(chalk.cyan(`[ 🔐 ] Registered: ${sessionData.registered ? 'YES ✅' : 'NO ❌'}`));
+        console.log(chalk.cyan(`[ 📏 ] Session size: ${base64Data.length} chars`));
         
-        let sessionData;
-        try {
-          sessionData = JSON.parse(decodedData);
-          console.log(chalk.green("[ ✅ ] DEBUG: JSON parsed successfully"));
-        } catch (parseError) {
-          console.error(chalk.red("[ ❌ ] DEBUG: JSON parse failed:"), parseError.message);
-          // Try alternative decoding
-          const altDecoded = Buffer.from(base64Data, "base64");
-          sessionData = JSON.parse(altDecoded.toString("utf-8"));
-          console.log(chalk.green("[ ✅ ] DEBUG: Alternative decode worked"));
+        // CRITICAL: If session is not registered, don't use it
+        if (!sessionData.registered) {
+          console.log(chalk.red("[ ❌ ] Session not registered! Will use QR code instead."));
+          return null;
         }
         
-        console.log(chalk.green(`[ ✅ ] DEBUG: Session loaded. Registered: ${sessionData.registered}`));
-        console.log(chalk.cyan(`[ 👤 ] DEBUG: Account: ${sessionData.me?.name || 'Unknown'}`));
-        
-        // CRITICAL: Convert ALL buffers properly
-        function deepConvertBuffers(obj) {
+        // Convert Buffer strings back to Buffer objects
+        function fixBuffers(obj) {
           if (!obj || typeof obj !== 'object') return obj;
           
-          // Handle {type: "Buffer", data: [...]}
           if (obj.type === "Buffer" && Array.isArray(obj.data)) {
             return Buffer.from(obj.data);
           }
           
-          // Handle base64 strings that should be buffers
-          if (typeof obj === 'string' && obj.length > 20) {
-            // Check if it looks like base64
-            if (/^[A-Za-z0-9+/=]+$/.test(obj)) {
-              try {
-                const buf = Buffer.from(obj, 'base64');
-                if (buf.length > 0) return buf;
-              } catch (e) {
-                // Not valid base64, keep as string
-              }
-            }
+          if (typeof obj === 'string' && obj.length > 50 && /^[A-Za-z0-9+/=]+$/.test(obj)) {
+            return Buffer.from(obj, 'base64');
           }
           
-          // Recursively process
-          if (Array.isArray(obj)) {
-            return obj.map(item => deepConvertBuffers(item));
-          }
-          
-          const result = {};
           for (const key in obj) {
             if (obj.hasOwnProperty(key)) {
-              result[key] = deepConvertBuffers(obj[key]);
+              obj[key] = fixBuffers(obj[key]);
             }
           }
-          return result;
+          
+          return obj;
         }
         
-        const processedSession = deepConvertBuffers(sessionData);
-        
-        // Verify critical fields
-        const criticalFields = ['noiseKey', 'signedIdentityKey', 'signedPreKey', 'registrationId'];
-        let missingFields = [];
-        criticalFields.forEach(field => {
-          if (!processedSession[field]) {
-            missingFields.push(field);
-          }
-        });
-        
-        if (missingFields.length > 0) {
-          console.log(chalk.red(`[ ⚠️ ] DEBUG: Missing critical fields: ${missingFields.join(', ')}`));
-        } else {
-          console.log(chalk.green("[ ✅ ] DEBUG: All critical fields present"));
-        }
-        
+        const processedSession = fixBuffers(sessionData);
         return processedSession;
-        
-      } catch (error) {
-        console.error(chalk.red("[ ❌ ] DEBUG: Failed to process session:"), error.message);
-        console.error(chalk.red("[ 🔍 ] DEBUG: Error stack:"), error.stack);
+      } catch (parseError) {
+        console.error(chalk.red("[ ❌ ] Failed to parse session data:"), parseError.message);
         return null;
       }
     } else {
-      console.log(chalk.red("[ ❌ ] DEBUG: Not Xguru~ format"));
+      console.log(chalk.yellow("[ ⚠️ ] Invalid SESSION_ID format. Use 'Xguru~' prefix"));
       return null;
     }
   } catch (error) {
-    console.error(chalk.red("❌ DEBUG: Unexpected error in loadSession:"), error.message);
-    console.error(chalk.red("🔍 DEBUG: Stack:"), error.stack);
+    console.error(chalk.red("❌ Error loading session:", error.message));
+    console.log(chalk.green("Will attempt QR code or pairing code login"));
     return null;
   }
 }
@@ -372,8 +261,8 @@ async function connectToWA() {
   malvin = makeWASocket({
     logger: P({ level: "silent" }),
     printQRInTerminal: !sessionLoaded && !pairingCode,
-    // Change browser to try different device identity
-    browser: Browsers.ubuntu('Chrome'),
+    // Fix: Using a standard browser identity reduces 405 errors
+    browser: ["XGURU", "Chrome", "1.1.0"],
     // Fix: Set to false to prevent Heroku from crashing during heavy sync
     syncFullHistory: false,
     // Fix: Added to ensure the bot maintains a stable heartbeat
@@ -392,13 +281,6 @@ async function connectToWA() {
   }
 
   malvin.ev.on("connection.update", function(update) {
-    console.log(chalk.cyan("[ 🔄 ] Connection update:"), JSON.stringify({
-      connection: update.connection,
-      qr: update.qr ? "QR received" : "No QR",
-      isNewLogin: update.isNewLogin,
-      receivedPendingNotifications: update.receivedPendingNotifications
-    }, null, 2));
-    
     var connection = update.connection;
     var lastDisconnect = update.lastDisconnect;
     var qr = update.qr;
@@ -417,17 +299,13 @@ async function connectToWA() {
       console.log(chalk.red("[ 🔍 ] Disconnect code: " + (reason || 'unknown')));
       console.log(chalk.yellow("[ 🔍 ] Reconnect attempt: " + global.reconnectAttempts));
       
-      // FIX: If 405 occurs, DON'T exit - just retry
+      // Fix: If 405 occurs, it often means the session is dead on the server
       if (reason === DisconnectReason.loggedOut || reason === 405) {
-        console.log(chalk.yellow("[ ⚠️ ] Got 405 but session shows registered. Trying again..."));
-        
-        // Don't exit - just wait and reconnect
-        var delay = Math.min(10000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
-        console.log(chalk.yellow("[ ⏳️ ] Reconnecting in " + (delay/1000) + "s..."));
-        
-        // Keep the same session - don't delete it
-        setTimeout(connectToWA, delay);
-        return;
+        console.log(chalk.red("[ 🛑 ] Session invalid (Code 405). Please generate a NEW session ID."));
+        if (fsSync.existsSync(credsPath)) {
+          fsSync.unlinkSync(credsPath);
+        }
+        process.exit(1);
       } else {
         // Exponential backoff: 5s, 10s, 20s, 40s, max 60s
         var delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
@@ -1286,7 +1164,6 @@ app.use(express.static(path.join(__dirname, "lib")));
 app.get("/", (req, res) => {
   res.redirect("/marisel.html");
 });
-
 app.listen(port, () =>
   console.log(chalk.cyan(`
 ╭──[ hello user ]─
