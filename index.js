@@ -200,11 +200,6 @@ function getCurrentSessionString() {
   return null;
 }
 
-// Sleep function utility
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // Session health check
 async function checkSessionHealth() {
   try {
