@@ -46,12 +46,12 @@ module.exports = {
   LIVE_MSG: process.env.LIVE_MSG || "> ʙᴏᴛ ɪs sᴘᴀʀᴋɪɴɢ ᴀᴄᴛɪᴠᴇ ᴀɴᴅ ᴀʟɪᴠᴇ\n\n\n> ɢɪᴛʜᴜʙ :* github.com/ADDICT-HUB/X-GURU", // Alive message
 
   // ===== REACTION & STICKER SETTINGS =====
-  AUTO_REACT: getConfig("AUTO_REACT") || process.env.AUTO_REACT || "false", // Auto-react to messages
-  OWNER_REACT: getConfig("OWNER_REACT") || process.env.OWNER_REACT || "false", // Owner-specific reactions
-  CUSTOM_REACT: getConfig("CUSTOM_REACT") || process.env.CUSTOM_REACT || "false", // Custom emoji reactions
+  AUTO_REACT: getConfig("AUTO_REACT") || process.env.AUTO_REACT || "true", // Auto-react to messages
+  OWNER_REACT: getConfig("OWNER_REACT") || process.env.OWNER_REACT || "true", // Owner-specific reactions
+  CUSTOM_REACT: getConfig("CUSTOM_REACT") || process.env.CUSTOM_REACT || "true", // Custom emoji reactions
   CUSTOM_REACT_EMOJIS: getConfig("CUSTOM_REACT_EMOJIS") || process.env.CUSTOM_REACT_EMOJIS || "💝,💖,💗,❤️‍🩹,❤️,🧡,💛,💚,💙,💜,🤎,🖤,🤍", // Custom reaction emojis
   STICKER_NAME: process.env.STICKER_NAME || "XGURU", // Sticker pack name
-  AUTO_STICKER: getConfig("AUTO_STICKER") || process.env.AUTO_STICKER || "false", // Auto-send stickers
+  AUTO_STICKER: getConfig("AUTO_STICKER") || process.env.AUTO_STICKER || "true", // Auto-send stickers
 
   // ===== MEDIA & AUTOMATION =====
   AUTO_RECORDING: getConfig("AUTO_RECORDING") || process.env.AUTO_RECORDING || "false", // Auto-record voice notes
@@ -61,7 +61,7 @@ module.exports = {
 
   // ===== SECURITY & ANTI-FEATURES =====
   ANTI_DELETE: getConfig("ANTI_DELETE") || process.env.ANTI_DELETE || "true", // Prevent message deletion
-  ANTI_CALL: getConfig("ANTI_CALL") || process.env.ANTI_CALL || "false", // Block incoming calls
+  ANTI_CALL: getConfig("ANTI_CALL") || process.env.ANTI_CALL || "true", // Block incoming calls
   ANTI_BAD_WORD: getConfig("ANTI_BAD_WORD") || process.env.ANTI_BAD_WORD || "false", // Block bad words
   ANTI_LINK: getConfig("ANTI_LINK") || process.env.ANTI_LINK || "true", // Block links in groups
   ANTI_VV: getConfig("ANTI_VV") || process.env.ANTI_VV || "true", // Block view-once messages
