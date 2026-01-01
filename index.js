@@ -315,6 +315,87 @@ async function connectToWA() {
           var plugin = plugins[i];
           if (path.extname(plugin).toLowerCase() === ".js") {
             require(path.join(pluginPath, plugin));
+async function connectToWA() {
+  console.log(chalk.cyan("[ 🟠 ] Connecting to WhatsApp ⏳️..."));
+
+  const sessionLoaded = await loadSession();
+  
+  if (sessionLoaded) {
+    console.log(chalk.green("[ ✅ ] Session loaded from environment"));
+  } else {
+    console.log(chalk.yellow("[ ⚠️ ] No valid session found, will use QR code"));
+  }
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir, {
+    creds: sessionLoaded || undefined
+  });
+
+  // FIXED: Updated to most stable version [2, 3000, 1017531810] to bypass 405 error
+  const version = [2, 3000, 1017531810]; 
+
+  const pairingCode = config.PAIRING_CODE === "true" || process.argv.includes("--pairing-code");
+  const useMobile = process.argv.includes("--mobile");
+
+  malvin = makeWASocket({
+    logger: P({ level: "silent" }),
+    printQRInTerminal: !sessionLoaded && !pairingCode,
+    // FIXED: Updated browser fingerprint to match newer WhatsApp Web standards
+    browser: ["Ubuntu", "Chrome", "131.0.6778.205"],
+    syncFullHistory: false,
+    keepAliveIntervalMs: 30000,
+    auth: state,
+    version,
+    getMessage: async () => ({}),
+    // FIXED: Refined retry logic for Heroku stability
+    retryRequestDelayMs: 5000,
+    maxRetries: 20,
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 0,
+  });
+
+  if (pairingCode && !state.creds.registered) {
+    await connectWithPairing(malvin, useMobile);
+  }
+
+  malvin.ev.on("connection.update", function(update) {
+    var connection = update.connection;
+    var lastDisconnect = update.lastDisconnect;
+    var qr = update.qr;
+
+    if (connection === "close") {
+      var reason = null;
+      if (lastDisconnect && lastDisconnect.error && lastDisconnect.error.output) {
+        reason = lastDisconnect.error.output.statusCode;
+      }
+      
+      if (!global.reconnectAttempts) global.reconnectAttempts = 0;
+      global.reconnectAttempts++;
+      
+      console.log(chalk.red("[ 🔍 ] Disconnect code: " + (reason || 'unknown')));
+      
+      // Handle the critical 405/Logged Out state
+      if (reason === DisconnectReason.loggedOut || reason === 405) {
+        console.log(chalk.red("[ 🛑 ] Session invalid (Code 405). Please generate a NEW session ID."));
+        if (fsSync.existsSync(credsPath)) {
+          fsSync.unlinkSync(credsPath);
+        }
+        process.exit(1);
+      } else {
+        var delay = Math.min(5000 * Math.pow(2, Math.min(global.reconnectAttempts - 1, 4)), 60000);
+        console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting in " + (delay/1000) + "s..."));
+        setTimeout(connectToWA, delay);
+      }
+    } else if (connection === "open") {
+      global.reconnectAttempts = 0;
+      console.log(chalk.green("[ 🤖 ] XGURU Connected ✅"));
+      
+      var pluginPath = path.join(__dirname, "plugins");
+      try {
+        var plugins = fsSync.readdirSync(pluginPath);
+        for (var i = 0; i < plugins.length; i++) {
+          var plugin = plugins[i];
+          if (path.extname(plugin).toLowerCase() === ".js") {
+            require(path.join(pluginPath, plugin));
           }
         }
         console.log(chalk.green("[ ✅ ] Plugins loaded successfully"));
@@ -360,7 +441,9 @@ async function connectToWA() {
   });
 
   malvin.ev.on("creds.update", saveCreds);
-
+  // ... rest of the code continues normally
+}
+			  
   malvin.ev.on('messages.update', async updates => {
     for (const update of updates) {
       if (update.update.message === null) {
