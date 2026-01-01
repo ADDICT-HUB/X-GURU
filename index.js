@@ -516,16 +516,22 @@ async function connectToWA() {
   });
 
       // ... existing code ...
-    malvin.decodeJid = jid => {
-        if (!jid) return jid;
-        if (/:\d+@/gi.test(jid)) {
-            let decode = jidDecode(jid) || {};
-            return (decode.user && decode.server && decode.user + '@' + decode.server) || jid;
-        } else return jid;
-    };
-} // <--- This closes the connectToWA function
+   malvin.decodeJid = jid => {
+    if (!jid) return jid;
+    if (/:\d+@/gi.test(jid)) {
+      let decode = jidDecode(jid) || {};
+      return (decode.user && decode.server && decode.user + '@' + decode.server) || jid;
+    } else return jid;
+  };
+} // This closes the connectToWA function
 
+// Route for the web server
 app.get("/", (req, res) => res.redirect("/marisel.html"));
+
+// Start the server
 app.listen(port, () => console.log(chalk.cyan("\n╭──[ hello user ]─\n│🤗 hi your bot is live \n╰──────────────")));
 
+// IT'S GuruTech 
+// Start the connection
 setTimeout(() => { connectToWA(); }, 4000);
+
