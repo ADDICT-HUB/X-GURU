@@ -438,8 +438,9 @@ const upMessage = `
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀`;
 
         try {
+          // YOUR UPDATED IMAGE URL
           await malvin.sendMessage(jid, {
-            image: { url: "https://files.catbox.moe/atpgij.jpg" },
+            image: { url: "https://files.catbox.moe/7czrlj.jpg" },
             caption: upMessage,
           }, { quoted: null });
           console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
@@ -458,35 +459,20 @@ const upMessage = `
         console.error(chalk.red(`[ 🔴 ] Error sending connection notice:`), sendError.message);
       }
       
-      // Follow newsletter (Edited: Only one newsletter)
+      // ========== FIXED NEWSLETTER SECTION ==========
+      // Newsletter following - SILENT MODE (no error messages)
+      console.log(chalk.yellow('[ ⚠️ ] Newsletter auto-follow is in silent mode'));
       const newsletterChannels = ["120363421164015033@newsletter"];
-      let followed = [];
-      let alreadyFollowing = [];
-      let failed = [];
-
+      
       for (const channelJid of newsletterChannels) {
         try {
-          console.log(chalk.cyan(`[ 📡 ] Checking metadata for ${channelJid}`));
-          const metadata = await malvin.newsletterMetadata("jid", channelJid);
-          if (!metadata.viewer_metadata || metadata.viewer_metadata.role === 'GUEST') {
-            await malvin.newsletterFollow(channelJid);
-            followed.push(channelJid);
-            console.log(chalk.green(`[ ✅ ] Followed newsletter: ${channelJid}`));
-          } else {
-            alreadyFollowing.push(channelJid);
-            console.log(chalk.yellow(`[ 📌 ] Already following: ${channelJid}`));
-          }
+          // Silently try to follow without logging errors
+          await malvin.newsletterFollow(channelJid).catch(() => {});
         } catch (error) {
-          failed.push(channelJid);
-          console.error(chalk.red(`[ ❌ ] Failed to follow ${channelJid}: ${error.message}`));
+          // Ignore all errors silently
         }
       }
-
-      console.log(
-        chalk.cyan(
-          `Newsletter Follow Status:\nFollowed: ${followed.length}\nAlready following: ${alreadyFollowing.length}\nFailed: ${failed.length}`
-        )
-      );
+      // ========== END FIXED SECTION ==========
 
       // Join WhatsApp group
       const inviteCode = "BEAT3drbrCJ4t29Flv0vwC";
@@ -534,8 +520,7 @@ const upMessage = `
     mek = mek.messages[0];
     if (!mek.message) return;
     
-    // ========== FIX ADDED HERE ==========
-    // Skip if message is from the bot itself (to prevent reacting to own messages)
+    // ========== FIX: Skip bot's own messages ==========
     if (mek.key.fromMe) {
       console.log('Skipping bot\'s own message');
       return;
@@ -561,7 +546,8 @@ const upMessage = `
       await malvin.readMessages([mek.key]);
     }
 
-    // Newsletter Reaction
+    // ========== FIXED NEWSLETTER REACTION SECTION ==========
+    // Newsletter Reaction - SILENT MODE (no errors)
     const newsletterJids = ["120363421164015033@newsletter"];
     const emojis = ["😂", "🥺", "👍", "☺️", "🥹", "♥️", "🩵"];
 
@@ -570,13 +556,17 @@ const upMessage = `
         const serverId = mek.newsletterServerId || mek.message?.newsletterStatusUpdateMessage?.serverMessageId;
         if (serverId) {
           const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-          await malvin.newsletterReactMessage(mek.key.remoteJid, serverId.toString(), emoji);
+          // Silent reaction - ignore errors
+          await malvin.newsletterReactMessage(mek.key.remoteJid, serverId.toString(), emoji).catch(() => {});
         }
-      } catch (e) {}
+      } catch (e) {
+        // Ignore all newsletter reaction errors
+      }
     }
+    // ========== END FIXED SECTION ==========
     
     if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_REACT === "true") {
-      const jawadlike = malvin.user.id; // Use the bot's JID directly
+      const jawadlike = malvin.user.id;
       const statusEmojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '👏', '🤎', '✅', '🫀', '🧡', '😶', '🥹', '🌸', '🕊️', '🌷', '⛅', '🌟', '🥺', '🇵🇰', '💜', '💙', '🌝', '🖤', '💚'];
       const randomEmoji = statusEmojis[Math.floor(Math.random() * statusEmojis.length)];
       await malvin.sendMessage(mek.key.remoteJid, { react: { text: randomEmoji, key: mek.key } }, { statusJidList: [mek.key.participant, jawadlike] });
@@ -648,14 +638,9 @@ const upMessage = `
     // Auto React list
     const reactionsList = ['🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '🧕', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'];
 
-    // ========== FIX ADDED HERE ==========
-    // Add command check BEFORE auto-react sections
-    // Only auto-react if message is a command OR if config explicitly allows it
-    const shouldAutoReact = config.AUTO_REACT === 'true' && isCmd;
-    // ========== END FIX ==========
-
-    // AUTO_REACT - React to all messages
-    if (!isReact && config.AUTO_REACT === 'true') {
+    // ========== FIX: Only auto-react if explicitly enabled AND it's a command ==========
+    // AUTO_REACT - React to all messages (only if enabled AND it's a command)
+    if (!isReact && config.AUTO_REACT === 'true' && isCmd) {
       const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
       try {
         await malvin.sendMessage(mek.key.remoteJid, {
@@ -781,8 +766,7 @@ const upMessage = `
     console.log('- Prefix used:', prefix);
     console.log('- Full command string:', body);
 
-    // ========== FIX ADDED HERE ==========
-    // Only process if it's a command
+    // ========== FIX: Only process if it's a command ==========
     if (!isCmd) {
       console.log('Not a command, ignoring message');
       return;
