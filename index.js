@@ -242,7 +242,7 @@ async function connectToWA() {
   const sessionLoaded = await loadSession();
   
   // Check if we have valid session data
-  if (sessionLoaded) {
+if (sessionLoaded) {
     console.log(chalk.green("[ ✅ ] Session loaded from environment"));
     console.log(chalk.cyan(`[ 👤 ] Account: ${sessionLoaded.me?.name || 'Unknown'}`));
   } else {
@@ -253,7 +253,8 @@ async function connectToWA() {
     creds: sessionLoaded || undefined
   });
 
-  const { version } = await fetchLatestBaileysVersion();
+  // Manual override: fetchLatestBaileysVersion can sometimes return a buggy version causing 405
+  const version = [2, 3000, 1015901307]; 
 
   const pairingCode = config.PAIRING_CODE === "true" || process.argv.includes("--pairing-code");
   const useMobile = process.argv.includes("--mobile");
@@ -261,8 +262,8 @@ async function connectToWA() {
   malvin = makeWASocket({
     logger: P({ level: "silent" }),
     printQRInTerminal: !sessionLoaded && !pairingCode,
-    // Fix: Using a standard browser identity reduces 405 errors
-    browser: ["XGURU", "Chrome", "1.1.0"],
+    // Fix: Updated browser string to a more modern Chrome fingerprint
+    browser: ["Ubuntu", "Chrome", "120.0.6099.129"],
     // Fix: Set to false to prevent Heroku from crashing during heavy sync
     syncFullHistory: false,
     // Fix: Added to ensure the bot maintains a stable heartbeat
@@ -271,9 +272,9 @@ async function connectToWA() {
     version,
     getMessage: async () => ({}),
     // Add these for better compatibility:
-    retryRequestDelayMs: 1000,
-    maxRetries: 10,
-    connectTimeoutMs: 30000,
+    retryRequestDelayMs: 2000, // Increased delay to prevent spamming the server
+    maxRetries: 15,
+    connectTimeoutMs: 60000, // Increased timeout for Heroku stability
   });
 
   if (pairingCode && !state.creds.registered) {
