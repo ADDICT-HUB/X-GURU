@@ -380,23 +380,34 @@ async function connectToWA() {
     } else if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] Xguru Connected ✅"));
 
-      // Load plugins
+      // Load plugins - FIXED: Skip problematic plugins
       const pluginPath = path.join(__dirname, "plugins");
       try {
-        fsSync.readdirSync(pluginPath).forEach((plugin) => {
+        const plugins = fsSync.readdirSync(pluginPath);
+        let loadedCount = 0;
+        let errorCount = 0;
+        
+        for (const plugin of plugins) {
           if (path.extname(plugin).toLowerCase() === ".js") {
-            require(path.join(pluginPath, plugin));
+            try {
+              require(path.join(pluginPath, plugin));
+              loadedCount++;
+            } catch (err) {
+              errorCount++;
+              console.error(chalk.red(`[ ❌ ] Failed to load plugin ${plugin}:`), err.message);
+            }
           }
-        });
-        console.log(chalk.green("[ ✅ ] Plugins loaded successfully"));
+        }
+        
+        console.log(chalk.green(`[ ✅ ] Plugins loaded: ${loadedCount} successful, ${errorCount} failed`));
       } catch (err) {
-        console.error(chalk.red("[ ❌ ] Error loading plugins:"), err.message);
+        console.error(chalk.red("[ ❌ ] Error accessing plugins directory:"), err.message);
       }
 
-      // Send connection message
+      // Send connection message - FIXED: Use TEXT ONLY to avoid image errors
       try {
         await sleep(2000);
-        const jid = malvin.user.id; // FIXED: Use the JID directly
+        const jid = malvin.user.id;
         if (!jid) throw new Error("Invalid JID for bot");
 
         const botname = "𝗫𝗚𝗨𝗥𝗨";
@@ -437,43 +448,28 @@ const upMessage = `
 █ ⚡ 𝗥𝗲𝗽𝗼𝗿𝘁 𝗲𝗿𝗿𝗼𝗿𝘀 𝘁𝗼 𝗱𝗲𝘃𝗲𝗹𝗼𝗽𝗲𝗿
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀`;
 
-        try {
-          // YOUR UPDATED IMAGE URL
-          await malvin.sendMessage(jid, {
-            image: { url: "https://files.catbox.moe/7czrlj.jpg" },
-            caption: upMessage,
-          }, { quoted: null });
-          console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
+        // FIXED: Send text-only message to avoid image errors
+        await malvin.sendMessage(jid, { text: upMessage });
+        console.log(chalk.green("[ 📩 ] Connection notice sent successfully (text-only)"));
 
+        try {
           await malvin.sendMessage(jid, {
             audio: { url: welcomeAudio },
             mimetype: "audio/mp4",
             ptt: true,
           }, { quoted: null });
           console.log(chalk.green("[ 📩 ] Connection notice sent successfully as audio"));
-        } catch (imageError) {
-          console.error(chalk.yellow("[ ⚠️ ] Image failed, sending text-only:"), imageError.message);
-          await malvin.sendMessage(jid, { text: upMessage });
+        } catch (audioError) {
+          console.error(chalk.yellow("[ ⚠️ ] Audio failed:"), audioError.message);
         }
       } catch (sendError) {
         console.error(chalk.red(`[ 🔴 ] Error sending connection notice:`), sendError.message);
       }
       
-      // ========== FIXED NEWSLETTER SECTION ==========
-      // Newsletter following - SILENT MODE (no error messages)
-      console.log(chalk.yellow('[ ⚠️ ] Newsletter auto-follow is in silent mode'));
-      const newsletterChannels = ["120363421164015033@newsletter"];
+      // Newsletter following - SILENT MODE COMPLETELY DISABLED
+      // Just log it's disabled, don't attempt to follow
+      console.log(chalk.yellow('[ ℹ️ ] Newsletter auto-follow is disabled'));
       
-      for (const channelJid of newsletterChannels) {
-        try {
-          // Silently try to follow without logging errors
-          await malvin.newsletterFollow(channelJid).catch(() => {});
-        } catch (error) {
-          // Ignore all errors silently
-        }
-      }
-      // ========== END FIXED SECTION ==========
-
       // Join WhatsApp group
       const inviteCode = "BEAT3drbrCJ4t29Flv0vwC";
       try {
@@ -546,24 +542,12 @@ const upMessage = `
       await malvin.readMessages([mek.key]);
     }
 
-    // ========== FIXED NEWSLETTER REACTION SECTION ==========
-    // Newsletter Reaction - SILENT MODE (no errors)
-    const newsletterJids = ["120363421164015033@newsletter"];
-    const emojis = ["😂", "🥺", "👍", "☺️", "🥹", "♥️", "🩵"];
-
-    if (mek.key && newsletterJids.includes(mek.key.remoteJid)) {
-      try {
-        const serverId = mek.newsletterServerId || mek.message?.newsletterStatusUpdateMessage?.serverMessageId;
-        if (serverId) {
-          const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-          // Silent reaction - ignore errors
-          await malvin.newsletterReactMessage(mek.key.remoteJid, serverId.toString(), emoji).catch(() => {});
-        }
-      } catch (e) {
-        // Ignore all newsletter reaction errors
-      }
-    }
-    // ========== END FIXED SECTION ==========
+    // Newsletter Reaction - COMPLETELY DISABLED
+    // No newsletter reactions at all
+    // const newsletterJids = ["120363421164015033@newsletter"];
+    // if (mek.key && newsletterJids.includes(mek.key.remoteJid)) {
+    //   // Do nothing - newsletter reactions disabled
+    // }
     
     if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_REACT === "true") {
       const jawadlike = malvin.user.id;
@@ -638,9 +622,8 @@ const upMessage = `
     // Auto React list
     const reactionsList = ['🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '🧕', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'];
 
-    // ========== FIX: Only auto-react if explicitly enabled AND it's a command ==========
-    // AUTO_REACT - React to all messages (only if enabled AND it's a command)
-    if (!isReact && config.AUTO_REACT === 'true' && isCmd) {
+    // AUTO_REACT - DISABLED by default in settings
+    if (!isReact && config.AUTO_REACT === 'true') {
       const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
       try {
         await malvin.sendMessage(mek.key.remoteJid, {
@@ -654,7 +637,7 @@ const upMessage = `
       }
     }
 
-    // OWNER_REACT - React when bot sends a message
+    // OWNER_REACT - DISABLED by default in settings
     if (!isReact && senderNumber === botNumber && config.OWNER_REACT === 'true') {
       const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
       try {
@@ -669,7 +652,7 @@ const upMessage = `
       }
     }
 
-    // CUSTOM_REACT - React with custom emojis
+    // CUSTOM_REACT - DISABLED by default in settings
     if (!isReact && config.CUSTOM_REACT === 'true') {
       const reactions = (config.CUSTOM_REACT_EMOJIS || '🥲,😂,👍🏻,🙂,😔').split(',');
       const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
@@ -685,7 +668,7 @@ const upMessage = `
       }
     }
 
-    // HEART_REACT - React with heart emojis when bot sends message
+    // HEART_REACT - DISABLED by default in settings
     if (!isReact && senderNumber === botNumber && config.HEART_EACT === 'true') {
       const reactions = (config.CUSTOM_REACT_EMOJIS || '❤️,🧡,💛,💚,💚').split(',');
       const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
