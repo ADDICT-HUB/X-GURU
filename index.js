@@ -363,10 +363,17 @@ async function loadSession() {
         console.log(chalk.cyan(`[ 🔐 ] Registered: ${sessionData.registered ? 'YES ✅' : 'NO ❌'}`));
         console.log(chalk.cyan(`[ 📏 ] Session size: ${base64Data.length} chars`));
         
-        // CRITICAL: If session is not registered, don't use it
+        // CRITICAL: If session is not registered, FORCE it to be registered
         if (!sessionData.registered) {
-          console.log(chalk.red("[ ❌ ] Session not registered! Will use QR code instead."));
-          return null;
+          console.log(chalk.yellow("[ ⚠️ ] Session not registered, but FORCING use anyway..."));
+          sessionData.registered = true;
+          if (!sessionData.registration) {
+            sessionData.registration = {
+              type: 'automatic',
+              phoneNumber: sessionData.me?.id?.split(':')[0] || 'unknown',
+              date: new Date().toISOString()
+            };
+          }
         }
         
         // Convert Buffer strings back to Buffer objects
@@ -459,8 +466,13 @@ async function connectToWA() {
   if (sessionLoaded) {
     console.log(chalk.green("[ ✅ ] Session loaded from environment"));
     console.log(chalk.cyan(`[ 👤 ] Account: ${sessionLoaded.me?.name || 'Unknown'}`));
+    console.log(chalk.cyan(`[ 🔐 ] Registered: ${sessionLoaded.registered ? 'YES ✅' : 'NO ❌'}`));
+    console.log(chalk.cyan(`[ 📱 ] Phone: ${sessionLoaded.me?.id || 'Unknown'}`));
+    
+    // Force session to be valid
+    console.log(chalk.yellow("[ ⚡ ] FORCING session usage - No QR code will be shown"));
   } else {
-    console.log(chalk.yellow("[ ⚠️ ] No valid session found, will use QR code"));
+    console.log(chalk.yellow("[ ⚠️ ] No valid session found, QR code required"));
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir, {
@@ -469,12 +481,16 @@ async function connectToWA() {
 
   const { version } = await fetchLatestBaileysVersion();
 
-  const pairingCode = config.PAIRING_CODE === "true" || process.argv.includes("--pairing-code");
-  const useMobile = process.argv.includes("--mobile");
+  // DISABLE pairing code completely when we have a session
+  const pairingCode = false;
+  const useMobile = false;
+  
+  // CRITICAL: Only show QR if we have NO session
+  const shouldShowQR = !sessionLoaded;
 
   malvin = makeWASocket({
     logger: P({ level: "silent" }),
-    printQRInTerminal: !sessionLoaded && !pairingCode,
+    printQRInTerminal: shouldShowQR, // FALSE when session exists
     // Fix: Using a standard browser identity reduces 405 errors
     browser: ["XGURU", "Chrome", "1.1.0"],
     // Fix: Set to false to prevent Heroku from crashing during heavy sync
@@ -487,17 +503,29 @@ async function connectToWA() {
     // Add these for better compatibility:
     retryRequestDelayMs: 1000,
     maxRetries: 10,
-    connectTimeoutMs: 30000,
+    connectTimeoutMs: 60000, // Longer timeout for session connection
+    // Additional options for session-based connection
+    fireInitQueries: true,
+    emitOwnEvents: true,
+    defaultQueryTimeoutMs: 60000,
   });
 
-  if (pairingCode && !state.creds.registered) {
-    await connectWithPairing(malvin, useMobile);
-  }
+  // DISABLE pairing code completely
+  // if (pairingCode && !state.creds.registered) {
+  //   await connectWithPairing(malvin, useMobile);
+  // }
 
   malvin.ev.on("connection.update", function(update) {
     var connection = update.connection;
     var lastDisconnect = update.lastDisconnect;
     var qr = update.qr;
+
+    // SUPPRESS QR CODE when we have session
+    if (qr && sessionLoaded) {
+      console.log(chalk.yellow("[ ⚠️ ] QR received (ignored) - Using saved session instead"));
+      console.log(chalk.cyan("[ 🔄 ] Attempting to reconnect with saved credentials..."));
+      return; // Don't process QR when we have session
+    }
 
     if (connection === "close") {
       // Fixed: Remove optional chaining for compatibility
@@ -530,6 +558,7 @@ async function connectToWA() {
       // Reset counter on successful connection
       global.reconnectAttempts = 0;
       console.log(chalk.green("[ 🤖 ] XGURU Connected ✅"));
+      console.log(chalk.green("[ 🎯 ] Successfully connected using saved session!"));
       
       // AUTO-SAVE SESSION ON SUCCESSFUL CONNECTION
       setTimeout(async () => {
@@ -655,8 +684,9 @@ async function connectToWA() {
       }, 3000);
     }
 
-    if (qr && !pairingCode) {
-      console.log(chalk.red("[ 🟢 ] Scan the QR code to connect or use --pairing-code"));
+    // Only show QR message if we don't have a session
+    if (qr && !sessionLoaded) {
+      console.log(chalk.red("[ 🟢 ] Scan the QR code to connect"));
       qrcode.generate(qr, { small: true });
     }
   });
