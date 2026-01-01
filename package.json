@@ -42,7 +42,7 @@
     "fs-extra": "^11.1.0",
     "google-tts-api": "^2.0.2",
     "javascript-obfuscator": "^4.0.0",
-    "jimp": "^0.16.1",
+    "jimp": "^1.6.0",
     "megajs": "^1.1.0",
     "mongoose": "^8.0.0",
     "node-cache": "^5.1.1",
