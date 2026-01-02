@@ -508,7 +508,7 @@ async function connectToWA() {
     }
   });
 
-  // ========== SIMPLIFIED MESSAGE HANDLER - MINIMAL DEBUGGING ==========
+  // ========== SIMPLIFIED MESSAGE HANDLER - FIXED OWNER CHECKING ==========
   malvin.ev.on('messages.upsert', async (messageData) => {
     console.log('🔔 MESSAGE EVENT TRIGGERED!');
     
@@ -675,10 +675,23 @@ async function connectToWA() {
       const from = mek.key.remoteJid;
       const sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
       const isGroup = from.endsWith('@g.us');
+      const senderNumber = sender.split('@')[0];
+      const botNumber = malvin.user.id.split(':')[0];
+      const pushname = mek.pushName || 'User';
+      const isMe = botNumber.includes(senderNumber);
       
       console.log('From JID:', from);
       console.log('Sender:', sender);
+      console.log('Sender number:', senderNumber);
+      console.log('Bot number:', botNumber);
       console.log('Is group?', isGroup);
+      console.log('Is me?', isMe);
+      
+      // ========== FIXED: OWNER CHECKING LOGIC ==========
+      // Use the SAME logic as your old script
+      const isOwner = ownerNumber.includes(senderNumber) || isMe;
+      console.log('Is owner?', isOwner);
+      // ========== END FIX ==========
       
       // Check if user is banned
       try {
@@ -691,22 +704,19 @@ async function connectToWA() {
         console.log('Error reading ban list:', e.message);
       }
       
-      // Check if user is owner
-      let isRealOwner = false;
+      // Also check sudo.json for additional owners
+      let isRealOwner = isOwner;
       try {
         const ownerFile = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
-        const ownerNumberFormatted = `${config.OWNER_NUMBER || ''}@s.whatsapp.net`;
-        const botNumber = malvin.user.id.split(':')[0];
-        const senderNumber = sender.split('@')[0];
-        const isMe = botNumber.includes(senderNumber);
-        
-        isRealOwner = sender === ownerNumberFormatted || isMe || ownerFile.includes(sender);
-        console.log('Is owner?', isRealOwner);
+        if (ownerFile.includes(sender)) {
+          isRealOwner = true;
+          console.log('User is in sudo.json');
+        }
       } catch (e) {
-        console.log('Error checking owner status:', e.message);
+        console.log('Error reading sudo.json:', e.message);
       }
       
-      // MODE logic
+      // MODE logic - FIXED to use isRealOwner
       if (!isRealOwner) {
         if (config.MODE === "private") {
           console.log('MODE=private, non-owner blocked');
@@ -790,10 +800,10 @@ async function connectToWA() {
           text: body,
           isGroup,
           sender,
-          senderNumber: sender.split('@')[0],
-          botNumber: malvin.user.id.split(':')[0],
-          pushname: mek.pushName || 'User',
-          isMe: false,
+          senderNumber: senderNumber,
+          botNumber: botNumber,
+          pushname: pushname,
+          isMe: isMe,
           isOwner: isRealOwner,
           reply
         };
