@@ -514,269 +514,304 @@ async function connectToWA() {
     }
   });
 
-  // ========== SIMPLE WORKING MESSAGE HANDLER ==========
+  // ========== SIMPLE RELIABLE MESSAGE HANDLER ==========
   malvin.ev.on('messages.upsert', async (messageData) => {
+    console.log('🔔 MESSAGE UPSERT EVENT TRIGGERED!');
+    
     try {
-      console.log('📩 MESSAGE RECEIVED EVENT');
-      
-      if (!messageData || !messageData.messages || messageData.messages.length === 0) {
-        console.log('❌ No messages in event');
+      if (!messageData || !messageData.messages || !Array.isArray(messageData.messages)) {
+        console.log('❌ Invalid message data');
         return;
       }
       
-      const mek = messageData.messages[0];
+      console.log(`📦 Received ${messageData.messages.length} message(s)`);
       
-      // Debug log
-      console.log('🔍 Message debug:', {
-        from: mek.key?.remoteJid,
-        participant: mek.key?.participant,
-        hasMessage: !!mek.message,
-        messageType: mek.message ? Object.keys(mek.message)[0] : 'none'
-      });
-      
-      // Skip if no message
-      if (!mek.message) {
-        console.log('❌ No message content');
-        return;
-      }
-      
-      // Skip bot's own messages
-      if (mek.key.fromMe) {
-        console.log('🤖 Skipping bot\'s own message');
-        return;
-      }
-      
-      const from = mek.key.remoteJid;
-      const sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
-      const isGroup = from.endsWith('@g.us');
-      
-      console.log('👤 Sender:', sender);
-      console.log('📍 From:', from);
-      console.log('👥 Is group:', isGroup);
-      
-      // Extract message text - SIMPLE AND RELIABLE
-      let body = '';
-      const msgContent = mek.message;
-      
-      if (msgContent.conversation) {
-        body = msgContent.conversation;
-      } else if (msgContent.extendedTextMessage && msgContent.extendedTextMessage.text) {
-        body = msgContent.extendedTextMessage.text;
-      } else if (msgContent.imageMessage && msgContent.imageMessage.caption) {
-        body = msgContent.imageMessage.caption;
-      } else if (msgContent.videoMessage && msgContent.videoMessage.caption) {
-        body = msgContent.videoMessage.caption;
-      } else if (msgContent.documentMessage && msgContent.documentMessage.caption) {
-        body = msgContent.documentMessage.caption;
-      }
-      
-      console.log('💬 Message text:', body);
-      
-      // Skip if empty
-      if (!body || body.trim() === '') {
-        console.log('📭 Empty message, skipping');
-        return;
-      }
-      
-      // Check if it's a command
-      const prefix = getPrefix();
-      console.log('🔤 Prefix:', prefix);
-      
-      if (!body.startsWith(prefix)) {
-        console.log('❌ Not a command');
-        return;
-      }
-      
-      console.log('🎯 COMMAND DETECTED!');
-      
-      // Extract command
-      const command = body.slice(prefix.length).trim().split(' ').shift().toLowerCase();
-      const args = body.trim().split(/ +/).slice(1);
-      
-      console.log('📋 Command:', command);
-      console.log('🔢 Args:', args);
-      
-      // Check banned users
-      try {
-        const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
-        if (bannedUsers.includes(sender)) {
-          console.log('🚫 User is banned:', sender);
-          return;
-        }
-      } catch (e) {
-        console.log('⚠️ Error reading ban list');
-      }
-      
-      // OWNER DETECTION - SIMPLE AND RELIABLE
-      let isOwner = false;
-      
-      try {
-        // Get clean numbers (remove +, @s.whatsapp.net, device identifiers)
-        const getCleanNumber = (jid) => {
-          if (!jid) return '';
-          const num = jid.split('@')[0];  // Remove @s.whatsapp.net
-          const cleanNum = num.split(':')[0];  // Remove device identifier (:0, :1, etc.)
-          return cleanNum.replace(/\D/g, '');  // Remove all non-digits
-        };
-        
-        const senderClean = getCleanNumber(sender);
-        const botClean = getCleanNumber(malvin.user.id);
-        
-        console.log('🔍 Owner check:', {
-          senderClean,
-          botClean,
-          isSame: senderClean === botClean,
-          botJID: malvin.user.id
-        });
-        
-        // Person who linked the bot IS THE OWNER
-        isOwner = senderClean === botClean;
-        
-        // If not linking person, check sudo.json
-        if (!isOwner) {
+      // Process each message
+      for (const mek of messageData.messages) {
+        try {
+          console.log('--- PROCESSING MESSAGE ---');
+          console.log('📨 From:', mek.key?.remoteJid);
+          console.log('👤 Participant:', mek.key?.participant);
+          console.log('📱 FromMe:', mek.key?.fromMe);
+          
+          // Skip if no message content
+          if (!mek.message) {
+            console.log('❌ No message content in this message');
+            continue;
+          }
+          
+          // Skip bot's own messages
+          if (mek.key.fromMe) {
+            console.log('🤖 Skipping bot\'s own message');
+            continue;
+          }
+          
+          const from = mek.key.remoteJid;
+          const sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
+          const isGroup = from.endsWith('@g.us');
+          
+          console.log('📍 Final sender:', sender);
+          console.log('👥 Is group:', isGroup);
+          
+          // Extract message text - SIMPLE METHOD
+          let body = '';
+          const msg = mek.message;
+          
+          // Check all possible message types
+          if (msg.conversation) {
+            body = msg.conversation;
+            console.log('📝 Type: conversation');
+          } else if (msg.extendedTextMessage) {
+            body = msg.extendedTextMessage.text || '';
+            console.log('📝 Type: extendedTextMessage');
+          } else if (msg.imageMessage) {
+            body = msg.imageMessage.caption || '';
+            console.log('📝 Type: imageMessage');
+          } else if (msg.videoMessage) {
+            body = msg.videoMessage.caption || '';
+            console.log('📝 Type: videoMessage');
+          } else if (msg.documentMessage) {
+            body = msg.documentMessage.caption || '';
+            console.log('📝 Type: documentMessage');
+          } else if (msg.audioMessage) {
+            body = msg.audioMessage.caption || '';
+            console.log('📝 Type: audioMessage');
+          } else {
+            console.log('📝 Type:', Object.keys(msg)[0], '(no text)');
+            continue; // Skip non-text messages
+          }
+          
+          console.log('💬 Message text:', body);
+          
+          // Skip if empty
+          if (!body || body.trim() === '') {
+            console.log('📭 Empty message, skipping');
+            continue;
+          }
+          
+          // Check if it's a command
+          const prefix = getPrefix();
+          console.log('🔤 Prefix:', prefix);
+          
+          if (!body.startsWith(prefix)) {
+            console.log('❌ Not a command');
+            
+            // Auto react if enabled
+            if (config.AUTO_REACT === 'true') {
+              try {
+                const reactionsList = ['❤️', '🔥', '👍', '😄', '🎉'];
+                const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
+                await malvin.sendMessage(from, {
+                  react: { 
+                    text: randomReaction, 
+                    key: mek.key
+                  }
+                });
+                console.log('✅ Auto-reacted');
+              } catch (error) {
+                console.log('⚠️ Failed to auto-react');
+              }
+            }
+            continue;
+          }
+          
+          console.log('🎯 COMMAND DETECTED!');
+          
+          // Extract command
+          const command = body.slice(prefix.length).trim().split(' ').shift().toLowerCase();
+          const args = body.trim().split(/ +/).slice(1);
+          const q = args.join(' ');
+          
+          console.log('📋 Command:', command);
+          console.log('🔢 Args:', args);
+          console.log('❓ Query:', q);
+          
+          // Check banned users
           try {
-            const sudoList = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
-            if (sudoList.includes(sender)) {
-              isOwner = true;
-              console.log('✅ User is in sudo.json');
+            const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
+            if (bannedUsers.includes(sender)) {
+              console.log('🚫 User is banned:', sender);
+              return;
             }
           } catch (e) {
-            console.log('⚠️ Error reading sudo.json');
+            console.log('⚠️ Error reading ban list');
           }
-        }
-      } catch (error) {
-        console.log('⚠️ Error in owner detection:', error.message);
-        isOwner = false;
-      }
-      
-      console.log('👑 Is owner?', isOwner);
-      
-      // MODE LOGIC
-      if (!isOwner) {
-        if (config.MODE === "private") {
-          console.log('🚫 Private mode - non-owner blocked');
-          await malvin.sendMessage(from, {
-            text: `❌ Bot is in private mode. Only the person who linked this bot can use commands.\n\nBot was linked by: ${malvin.user.id.split('@')[0]}`
-          }, { quoted: mek });
-          return;
-        }
-        if (config.MODE === "inbox" && isGroup) {
-          console.log('🚫 Inbox mode - group message blocked');
-          await malvin.sendMessage(from, {
-            text: `❌ Bot is in inbox mode. Commands only work in private chat.`
-          }, { quoted: mek });
-          return;
-        }
-        if (config.MODE === "groups" && !isGroup) {
-          console.log('🚫 Groups mode - private message blocked');
-          await malvin.sendMessage(from, {
-            text: `❌ Bot is in groups mode. Commands only work in groups.`
-          }, { quoted: mek });
-          return;
-        }
-      }
-      
-      console.log('✅ User has permission');
-      
-      // Load and execute command
-      try {
-        const events = require('./malvin');
-        
-        if (!events || !events.commands || !Array.isArray(events.commands)) {
-          console.log('❌ No commands found in malvin.js');
-          await malvin.sendMessage(from, {
-            text: '❌ No commands configured. Please check malvin.js file.'
-          }, { quoted: mek });
-          return;
-        }
-        
-        console.log(`📚 Found ${events.commands.length} commands`);
-        
-        // Find the command
-        let cmd = null;
-        for (const c of events.commands) {
-          if (c.pattern === command) {
-            cmd = c;
-            break;
-          }
-          if (c.alias && Array.isArray(c.alias) && c.alias.includes(command)) {
-            cmd = c;
-            break;
-          }
-        }
-        
-        if (!cmd) {
-          console.log(`❌ Command "${command}" not found`);
-          await malvin.sendMessage(from, {
-            text: `❌ Command "${command}" not found. Type ${prefix}menu for available commands.`
-          }, { quoted: mek });
-          return;
-        }
-        
-        console.log(`✅ Found command: ${cmd.pattern || cmd.alias?.[0]}`);
-        
-        // Send command reaction if specified
-        if (cmd.react) {
+          
+          // OWNER DETECTION - SIMPLE AND RELIABLE
+          let isOwner = false;
+          
           try {
-            await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }});
-            console.log('✅ Sent reaction:', cmd.react);
+            // Get clean numbers (remove +, @s.whatsapp.net, device identifiers)
+            const getCleanNumber = (jid) => {
+              if (!jid) return '';
+              const num = jid.split('@')[0];  // Remove @s.whatsapp.net
+              const cleanNum = num.split(':')[0];  // Remove device identifier (:0, :1, etc.)
+              return cleanNum.replace(/\D/g, '');  // Remove all non-digits
+            };
+            
+            const senderClean = getCleanNumber(sender);
+            const botClean = getCleanNumber(malvin.user.id);
+            
+            console.log('🔍 Owner check:', {
+              senderClean,
+              botClean,
+              isSame: senderClean === botClean,
+              botJID: malvin.user.id
+            });
+            
+            // Person who linked the bot IS THE OWNER
+            isOwner = senderClean === botClean;
+            
+            // If not linking person, check sudo.json
+            if (!isOwner) {
+              try {
+                const sudoList = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
+                if (sudoList.includes(sender)) {
+                  isOwner = true;
+                  console.log('✅ User is in sudo.json');
+                }
+              } catch (e) {
+                console.log('⚠️ Error reading sudo.json');
+              }
+            }
           } catch (error) {
-            console.log('⚠️ Failed to send reaction');
+            console.log('⚠️ Error in owner detection:', error.message);
+            isOwner = false;
           }
-        }
-        
-        // Prepare tools object
-        const reply = (text) => {
-          const message = `${text}\n\n*NI MBAYA 😅*`;
-          return malvin.sendMessage(from, { text: message }, { quoted: mek });
-        };
-        
-        const tools = {
-          from,
-          quoted: mek,
-          body,
-          isCmd: true,
-          command,
-          args,
-          q: args.join(' '),
-          text: body,
-          isGroup,
-          sender,
-          senderNumber: sender.split('@')[0],
-          botNumber: malvin.user.id.split(':')[0],
-          pushname: mek.pushName || 'User',
-          isMe: false,
-          isOwner,
-          reply
-        };
-        
-        // Initialize m variable
-        let m;
-        try {
-          if (typeof sms === 'function') {
-            m = sms(malvin, mek);
-          } else {
-            m = { message: mek.message };
+          
+          console.log('👑 Is owner?', isOwner);
+          
+          // MODE LOGIC
+          if (!isOwner) {
+            if (config.MODE === "private") {
+              console.log('🚫 Private mode - non-owner blocked');
+              await malvin.sendMessage(from, {
+                text: `❌ Bot is in private mode. Only the person who linked this bot can use commands.\n\nBot was linked by: ${malvin.user.id.split('@')[0]}`
+              }, { quoted: mek });
+              continue;
+            }
+            if (config.MODE === "inbox" && isGroup) {
+              console.log('🚫 Inbox mode - group message blocked');
+              await malvin.sendMessage(from, {
+                text: `❌ Bot is in inbox mode. Commands only work in private chat.`
+              }, { quoted: mek });
+              continue;
+            }
+            if (config.MODE === "groups" && !isGroup) {
+              console.log('🚫 Groups mode - private message blocked');
+              await malvin.sendMessage(from, {
+                text: `❌ Bot is in groups mode. Commands only work in groups.`
+              }, { quoted: mek });
+              continue;
+            }
           }
-        } catch (e) {
-          m = { message: mek.message };
-        }
-        
-        // Execute the command
-        console.log('🚀 Executing command...');
-        await cmd.function(malvin, mek, m, tools);
-        console.log(`✅ Command "${command}" executed successfully`);
-        
-      } catch (moduleError) {
-        console.error('❌ COMMAND ERROR:', moduleError.message);
-        console.error('Stack:', moduleError.stack);
-        
-        try {
-          await malvin.sendMessage(from, {
-            text: `❌ Error executing command "${command}": ${moduleError.message}`
-          }, { quoted: mek });
-        } catch (sendError) {
-          console.log('⚠️ Failed to send error message');
+          
+          console.log('✅ User has permission');
+          
+          // Load and execute command
+          try {
+            const events = require('./malvin');
+            
+            if (!events || !events.commands || !Array.isArray(events.commands)) {
+              console.log('❌ No commands found in malvin.js');
+              await malvin.sendMessage(from, {
+                text: '❌ No commands configured. Please check malvin.js file.'
+              }, { quoted: mek });
+              continue;
+            }
+            
+            console.log(`📚 Found ${events.commands.length} commands`);
+            
+            // Find the command
+            let cmd = null;
+            for (const c of events.commands) {
+              if (c.pattern === command) {
+                cmd = c;
+                break;
+              }
+              if (c.alias && Array.isArray(c.alias) && c.alias.includes(command)) {
+                cmd = c;
+                break;
+              }
+            }
+            
+            if (!cmd) {
+              console.log(`❌ Command "${command}" not found`);
+              await malvin.sendMessage(from, {
+                text: `❌ Command "${command}" not found. Type ${prefix}menu for available commands.`
+              }, { quoted: mek });
+              continue;
+            }
+            
+            console.log(`✅ Found command: ${cmd.pattern || cmd.alias?.[0]}`);
+            
+            // Send command reaction if specified
+            if (cmd.react) {
+              try {
+                await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }});
+                console.log('✅ Sent reaction:', cmd.react);
+              } catch (error) {
+                console.log('⚠️ Failed to send reaction');
+              }
+            }
+            
+            // Prepare tools object
+            const reply = (text) => {
+              const message = `${text}\n\n*NI MBAYA 😅*`;
+              return malvin.sendMessage(from, { text: message }, { quoted: mek });
+            };
+            
+            const tools = {
+              from,
+              quoted: mek,
+              body,
+              isCmd: true,
+              command,
+              args,
+              q,
+              text: body,
+              isGroup,
+              sender,
+              senderNumber: sender.split('@')[0],
+              botNumber: malvin.user.id.split(':')[0],
+              pushname: mek.pushName || 'User',
+              isMe: false,
+              isOwner,
+              reply
+            };
+            
+            // Initialize m variable
+            let m;
+            try {
+              if (typeof sms === 'function') {
+                m = sms(malvin, mek);
+              } else {
+                m = { message: mek.message };
+              }
+            } catch (e) {
+              m = { message: mek.message };
+            }
+            
+            // Execute the command
+            console.log('🚀 Executing command...');
+            await cmd.function(malvin, mek, m, tools);
+            console.log(`✅ Command "${command}" executed successfully`);
+            
+          } catch (moduleError) {
+            console.error('❌ COMMAND ERROR:', moduleError.message);
+            console.error('Stack:', moduleError.stack);
+            
+            try {
+              await malvin.sendMessage(from, {
+                text: `❌ Error executing command "${command}": ${moduleError.message}`
+              }, { quoted: mek });
+            } catch (sendError) {
+              console.log('⚠️ Failed to send error message');
+            }
+          }
+          
+        } catch (messageError) {
+          console.error('❌ ERROR PROCESSING SINGLE MESSAGE:', messageError.message);
         }
       }
       
