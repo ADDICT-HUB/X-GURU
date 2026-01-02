@@ -435,7 +435,7 @@ async function connectToWA() {
         const upMessage = `
 ▄▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▄
 █        𝗫𝗚𝗨𝗥𝗨 𝗕𝗢𝗧 𝗢𝗡𝗟𝗜𝗡𝗘        █
-█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
+█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀𝗚𝗨𝗥𝗨▀▀▀▀▀▀▀▀▀█
 █ • 𝗣𝗿𝗲𝗳𝗶𝘅: ${prefix}
 █ • 𝗗𝗮𝘁𝗲: ${date}
 █ • 𝗧𝗶𝗺𝗲: ${time}
@@ -680,6 +680,25 @@ async function connectToWA() {
       console.log('Sender:', sender);
       console.log('Is group?', isGroup);
       
+      // ADDED: Debug logging for the linking number
+      console.log('🔍 SENDER DETAILS:', {
+        sender,
+        fromMe: mek.key.fromMe,
+        botId: malvin.user.id,
+        botNumber: malvin.user.id.split(':')[0],
+        senderNumber: sender.split('@')[0]
+      });
+
+      // ADDED: Check if sender is the linking device
+      const botPhoneNumber = malvin.user.id.split(':')[0]?.replace('+', '');
+      const senderPhoneNumber = sender.split('@')[0]?.replace('+', '');
+      const isLinkingDevice = botPhoneNumber === senderPhoneNumber;
+
+      console.log('📱 Is linking device?', isLinkingDevice, {
+        botPhoneNumber,
+        senderPhoneNumber
+      });
+      
       // Check if user is banned
       try {
         const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
@@ -691,35 +710,59 @@ async function connectToWA() {
         console.log('Error reading ban list:', e.message);
       }
       
-      // Check if user is owner
+      // Check if user is owner - MODIFIED FIX
       let isRealOwner = false;
       try {
         const ownerFile = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
         const ownerNumberFormatted = `${config.OWNER_NUMBER || ''}@s.whatsapp.net`;
-        const botNumber = malvin.user.id.split(':')[0];
         const senderNumber = sender.split('@')[0];
-        const isMe = botNumber.includes(senderNumber);
         
-        isRealOwner = sender === ownerNumberFormatted || isMe || ownerFile.includes(sender);
-        console.log('Is owner?', isRealOwner);
+        // Better owner detection - MODIFIED
+        const isBotOwner = sender === ownerNumberFormatted;
+        const isInSudoList = ownerFile.includes(sender);
+        const isOwnerNumberMatch = ownerNumberFormatted.includes(senderNumber) || 
+                                  sender.includes(config.OWNER_NUMBER || '');
+        
+        isRealOwner = isBotOwner || isInSudoList || isOwnerNumberMatch || isLinkingDevice; // ADDED isLinkingDevice
+        
+        console.log('Owner check:', {
+          sender,
+          ownerNumberFormatted,
+          isBotOwner,
+          isInSudoList,
+          isOwnerNumberMatch,
+          isLinkingDevice,
+          isRealOwner
+        });
       } catch (e) {
         console.log('Error checking owner status:', e.message);
       }
       
-      // MODE logic
+      // MODE logic - MODIFIED to allow owner always
       if (!isRealOwner) {
         if (config.MODE === "private") {
           console.log('MODE=private, non-owner blocked');
+          await malvin.sendMessage(from, { 
+            text: `❌ Bot is in private mode. Only owner can use commands.` 
+          }, { quoted: mek });
           return;
         }
         if (config.MODE === "inbox" && isGroup) {
           console.log('MODE=inbox, group message from non-owner blocked');
+          await malvin.sendMessage(from, { 
+            text: `❌ Bot is in inbox mode. Commands only work in private chat.` 
+          }, { quoted: mek });
           return;
         }
         if (config.MODE === "groups" && !isGroup) {
           console.log('MODE=groups, private message from non-owner blocked');
+          await malvin.sendMessage(from, { 
+            text: `❌ Bot is in groups mode. Commands only work in groups.` 
+          }, { quoted: mek });
           return;
         }
+      } else {
+        console.log('✅ Owner detected, bypassing MODE restrictions');
       }
       
       console.log('✅ User has permission to use commands');
