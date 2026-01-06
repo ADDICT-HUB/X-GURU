@@ -11,6 +11,9 @@ process.on("unhandledRejection", (reason, p) => {
 
 const axios = require("axios");
 const config = require("./settings");
+const moment = require('moment-timezone');
+moment.tz.setDefault(config.TIMEZONE);
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -85,6 +88,9 @@ const readline = require("readline");
 
 // Removed hardcoded owner - now dynamic
 let ownerNumber = [];
+
+// Flood tracking
+const floodMap = new Map(); // sender => {count, timer}
 
 // Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
@@ -269,10 +275,10 @@ function addHelperFunctions(malvin) {
 
   malvin.getFile = async(PATH, save) => {
     let res;
-    let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split `,` [1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fsSync.existsSync(PATH) ? fsSync.readFileSync(PATH) : typeof PATH === 'string' ? PATH : Buffer.alloc(0);
+    let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split`,`[1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fsSync.existsSync(PATH) ? fsSync.readFileSync(PATH) : typeof PATH === 'string' ? PATH : Buffer.alloc(0);
     let type = await FileType.fromBuffer(data) || { mime: 'application/octet-stream', ext: '.bin' };
-    let filename = path.join(__filename, __dirname + new Date * 1 + '.' + type.ext);
-    if (data && save) fs.writeFile(filename, data);
+    let filename = path.join(__dirname, new Date() * 1 + '.' + type.ext);
+    if (data && save) await fs.writeFile(filename, data);
     return { res, filename, size: data.length, ...type, data };
   };
 
@@ -301,7 +307,7 @@ function addHelperFunctions(malvin) {
     for (let i of kon) {
       list.push({
         displayName: await malvin.getName(i + '@s.whatsapp.net'),
-        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:\( {await malvin.getName(i + '@s.whatsapp.net')}\nFN:Owner\nitem1.TEL;waid= \){i}:${i}\nitem1.X-ABLabel:Click here to chat\nEND:VCARD`,
+        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:\( {await malvin.getName(i + '@s.whatsapp.net')}\nFN: \){config.OWNER_NAME}\nitem1.TEL;waid=\( {i}: \){i}\nitem1.X-ABLabel:Click here to chat\nEND:VCARD`,
       });
     }
     malvin.sendMessage(jid, { contacts: { displayName: `${list.length} Contact`, contacts: list }, ...opts }, { quoted });
@@ -331,8 +337,11 @@ async function connectToWA() {
   malvin = makeWASocket({
     logger: P({ level: "silent" }),
     printQRInTerminal: !creds && !pairingCode,
-    browser: Browsers.macOS("Firefox"),
+    browser: Browsers.windows("Chrome"),
     syncFullHistory: true,
+    markOnlineOnConnect: true,
+    emitOwnEvents: true,
+    generateHighQualityLinkPreview: true,
     auth: state,
     version,
     getMessage: async () => ({}),
@@ -362,7 +371,6 @@ async function connectToWA() {
     } else if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] Xguru Connected ✅"));
 
-      // Dynamic owner from linked number
       const linkedNumber = malvin.user.id.split(':')[0];
       ownerNumber = [linkedNumber];
       console.log(chalk.green(`[ 👤 ] Owner set dynamically to linked number: ${linkedNumber}`));
@@ -373,7 +381,6 @@ async function connectToWA() {
         const plugins = fsSync.readdirSync(pluginPath);
         let loadedCount = 0;
         let errorCount = 0;
-        
         for (const plugin of plugins) {
           if (path.extname(plugin).toLowerCase() === ".js") {
             try {
@@ -385,51 +392,26 @@ async function connectToWA() {
             }
           }
         }
-        
         console.log(chalk.green(`[ ✅ ] Plugins loaded: ${loadedCount} successful, ${errorCount} failed`));
       } catch (err) {
         console.error(chalk.red("[ ❌ ] Error accessing plugins directory:"), err.message);
       }
 
-      // Send connection message - SAFE PREFIX LOAD
+      // Startup message
       try {
         await sleep(2000);
         const jid = malvin.user.id;
-        if (!jid) throw new Error("Invalid JID for bot");
+        const botname = config.BOT_NAME;
+        const ownername = config.OWNER_NAME;
+        let prefix = config.PREFIX;
 
-        const botname = "𝗫𝗚𝗨𝗥𝗨";
-        const ownername = "𝗚𝗨𝗥𝗨";
-
-        // Safe prefix loading
-        let prefix = ".";
-        try {
-          const prefixModule = require("./lib/prefix");
-          if (typeof prefixModule.getPrefix === "function") {
-            prefix = prefixModule.getPrefix();
-          }
-        } catch (e) {
-          console.log(chalk.yellow("[!] Prefix load failed, using default '.'"));
-        }
-
-        const currentDate = new Date();
-        const date = currentDate.toLocaleDateString();
-        const time = currentDate.toLocaleTimeString();
-        
-        function formatUptime(seconds) {
-          const days = Math.floor(seconds / (24 * 60 * 60));
-          seconds %= 24 * 60 * 60;
-          const hours = Math.floor(seconds / (60 * 60));
-          seconds %= 60 * 60;
-          const minutes = Math.floor(seconds / 60);
-          seconds = Math.floor(seconds % 60);
-          return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        }
-        
+        const date = moment().format('YYYY-MM-DD');
+        const time = moment().format('HH:mm:ss');
         const uptime = formatUptime(process.uptime());
 
         const upMessage = `
 ▄▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▄
-█        𝗫𝗚𝗨𝗥𝗨 𝗕𝗢𝗧 𝗢𝗡𝗟𝗜𝗡𝗘        █
+█        ${botname} 𝗕𝗢𝗧 𝗢𝗡𝗟𝗜𝗡𝗘        █
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
 █ • 𝗣𝗿𝗲𝗳𝗶𝘅: ${prefix}
 █ • 𝗗𝗮𝘁𝗲: ${date}
@@ -437,35 +419,37 @@ async function connectToWA() {
 █ • 𝗨𝗽𝘁𝗶𝗺𝗲: ${uptime}
 █ • 𝗢𝘄𝗻𝗲𝗿: ${ownername}
 █ • 𝗖𝗵𝗮𝗻𝗻𝗲𝗹: https://shorturl.at/DYEi0
+█ • 𝗥𝗲𝗽𝗼: ${config.REPO}
+█ • 𝗩𝗲𝗿𝘀𝗶𝗼𝗻: ${config.version}
 █
 █ ⚡ 𝗥𝗲𝗽𝗼𝗿𝘁 𝗲𝗿𝗿𝗼𝗿𝘀 𝘁𝗼 𝗱𝗲𝘃𝗲𝗹𝗼𝗽𝗲𝗿
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀`;
 
         await malvin.sendMessage(jid, { text: upMessage });
-        console.log(chalk.green("[ 📩 ] Connection notice sent successfully (text-only)"));
+        console.log(chalk.green("[ 📩 ] Connection notice sent successfully"));
 
         try {
           await malvin.sendMessage(jid, {
-            audio: { url: "https://files.catbox.moe/z47dgd.p3" },
+            audio: { url: config.AUDIO_URL || config.MENU_AUDIO_URL },
             mimetype: "audio/mp4",
             ptt: true,
-          }, { quoted: null });
-          console.log(chalk.green("[ 📩 ] Connection notice sent successfully as audio"));
-        } catch (audioError) {
-          console.error(chalk.yellow("[ ⚠️ ] Audio failed:"), audioError.message);
+          });
+          console.log(chalk.green("[ 📩 ] Startup audio sent"));
+        } catch (e) {
+          console.error(chalk.yellow("[ ⚠️ ] Audio failed"));
         }
-      } catch (sendError) {
-        console.error(chalk.red(`[ 🔴 ] Error sending connection notice:`), sendError.message);
+      } catch (e) {}
+
+      // Auto features
+      if (config.AUTO_BIO === 'true') {
+        setInterval(async () => {
+          const bio = `${config.BOT_NAME} | ${moment().format('HH:mm:ss')} | Owner: ${config.OWNER_NAME}`;
+          await malvin.updateProfileStatus(bio);
+        }, 60000);
       }
-      
-      console.log(chalk.yellow('[ ℹ️ ] Newsletter auto-follow is disabled'));
-      
-      const inviteCode = "BEAT3drbrCJ4t29Flv0vwC";
-      try {
-        await malvin.groupAcceptInvite(inviteCode);
-        console.log(chalk.green("[ ✅ ] joined the WhatsApp group successfully"));
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
+
+      if (config.ALWAYS_ONLINE === 'true') {
+        setInterval(() => malvin.sendPresenceUpdate('available'), 10000);
       }
     }
 
@@ -478,29 +462,36 @@ async function connectToWA() {
   malvin.ev.on("creds.update", saveCreds);
 
   malvin.ev.on('messages.update', async updates => {
-    for (const update of updates) {
-      if (update.update.message === null) {
-        await AntiDelete(malvin, updates);
+    if (config.ANTI_DELETE === 'true') {
+      for (const update of updates) {
+        if (update.update.message === null) {
+          await AntiDelete(malvin, updates);
+        }
       }
-    }
-  });
-  
-  malvin.ev.on('call', async (calls) => {
-    try {
-      if (config.ANTI_CALL !== 'true') return;
-      for (const call of calls) {
-        if (call.status !== 'offer') continue;
-        const id = call.id;
-        const from = call.from;
-        await malvin.rejectCall(id, from);
-        await malvin.sendMessage(from, { text: config.REJECT_MSG || '*вυѕу ¢αℓℓ ℓαтєя*' });
-      }
-    } catch (err) {
-      console.error("Anti-call error:", err);
     }
   });
 
-  // Message handler with fixed owner & MODE
+  malvin.ev.on('call', async (calls) => {
+    if (config.ANTI_CALL !== 'true') return;
+    for (const call of calls) {
+      if (call.status !== 'offer') continue;
+      await malvin.rejectCall(call.id, call.from);
+      await malvin.sendMessage(call.from, { text: config.REJECT_MSG });
+    }
+  });
+
+  malvin.ev.on('group-participants.update', async (update) => {
+    const { id, participants, action } = update;
+    for (let user of participants) {
+      const num = user.split('@')[0];
+      if (action === 'add' && config.WELCOME === 'true') {
+        await malvin.sendMessage(id, { text: `Welcome @${num} to the group! 👋`, mentions: [user] });
+      } else if (action === 'remove' && config.GOODBYE === 'true') {
+        await malvin.sendMessage(id, { text: `Goodbye @${num} 👋`, mentions: [user] });
+      }
+    }
+  });
+
   malvin.ev.on('messages.upsert', async (messageData) => {
     try {
       if (!messageData?.messages?.length) return;
@@ -510,61 +501,153 @@ async function connectToWA() {
       const from = mek.key.remoteJid;
       const sender = mek.key.participant || mek.key.remoteJid;
       const senderNumber = sender.split('@')[0];
-      const botNumber = malvin.user.id.split(':')[0]; // Linked number
-
+      const botNumber = malvin.user.id.split(':')[0];
       const isGroup = from.endsWith('@g.us');
 
-      // Owner = linked number + sudo.json
       let isRealOwner = ownerNumber.includes(senderNumber) || senderNumber === botNumber;
       try {
         const sudo = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
         if (sudo.includes(senderNumber)) isRealOwner = true;
       } catch (e) {}
 
-      // MODE logic - fixed for public mode
       if (config.MODE === "private" && !isRealOwner) return;
       if (config.MODE === "inbox" && isGroup && !isRealOwner) return;
       if (config.MODE === "groups" && !isGroup && !isRealOwner) return;
-      // public = everyone allowed
 
-      // Banned check
+      if (!isGroup && !isRealOwner && config.PM_BLOCKER === 'true') {
+        await malvin.updateBlockStatus(from, 'block');
+        return;
+      }
+
       try {
         const banned = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
         if (banned.includes(sender)) return;
       } catch (e) {}
 
-      // Extract body
-      const type = getContentType(mek.message);
-      let body = '';
-      if (type === 'conversation') body = mek.message.conversation || '';
-      else if (type === 'extendedTextMessage') body = mek.message.extendedTextMessage?.text || '';
-      else if (type === 'imageMessage') body = mek.message.imageMessage?.caption || '';
-      else if (type === 'videoMessage') body = mek.message.videoMessage?.caption || '';
-      else if (type === 'documentMessage') body = mek.message.documentMessage?.caption || '';
+      if (config.READ_MESSAGE === 'true') {
+        await malvin.readMessages([mek.key]);
+      }
 
-      if (!body.trim()) {
-        if (config.AUTO_REACT === 'true') {
-          const reactions = ['❤️', '🔥', '👍', '😄', '🎉'];
-          await malvin.sendMessage(from, { react: { text: reactions[Math.floor(Math.random() * reactions.length)], key: mek.key } });
+      // Status broadcast handling
+      if (from === 'status@broadcast') {
+        if (config.AUTO_STATUS_SEEN === 'true') await malvin.readMessages([mek.key]);
+        if (config.AUTO_STATUS_REACT === 'true') {
+          const emojis = ['👍','❤️','😍','😂','🤩','😮','🔥','🎉','😄','💯','🙌','👏','😲','🥰','🤗','😜','🤯','🚀','💥','✨','🌟','🎊'];
+          await malvin.sendMessage(from, { react: { text: getRandom(emojis), key: mek.key } });
+        }
+        if (config.AUTO_STATUS_REPLY === 'true') {
+          await malvin.sendMessage(sender, { text: config.AUTO_STATUS_MSG });
         }
         return;
       }
 
-      // Safe prefix
-      let prefix = ".";
-      try {
-        const p = require("./lib/prefix");
-        if (typeof p.getPrefix === "function") prefix = p.getPrefix();
-      } catch (e) {}
+      if (config.AUTO_TYPING === 'true') await malvin.sendPresenceUpdate('composing', from);
+      if (config.AUTO_RECORDING === 'true') await malvin.sendPresenceUpdate('recording', from);
 
-      if (!body.startsWith(prefix)) return;
+      const type = getContentType(mek.message);
+      let body = type === 'conversation' ? mek.message.conversation : 
+                 (type === 'extendedTextMessage' ? mek.message.extendedTextMessage.text : 
+                 (mek.message[type]?.caption || ''));
+
+      // Anti View Once
+      if (mek.message.viewOnceMessage && config.ANTI_VV === 'true') {
+        await malvin.copyNForward(from, mek, false, { readViewOnce: true });
+      }
+
+      // Mention reply
+      if (mek.message?.extendedTextMessage?.contextInfo?.mentionedJid?.includes(malvin.user.id) && config.MENTION_REPLY === 'true') {
+        await malvin.sendMessage(from, { text: 'Yes boss? How can I help? 😄' });
+      }
+
+      // === ANTI-SPAM FILTERS ===
+      if (isGroup) {
+        const metadata = await malvin.groupMetadata(from);
+        const admins = getGroupAdmins(metadata.participants);
+        const isBotAdmin = admins.includes(malvin.user.id);
+
+        // Anti-Bot
+        if (config.ANTI_BOT === 'true' && mek.message?.protocolMessage) {
+          if (isBotAdmin) await malvin.sendMessage(from, { delete: mek.key });
+          return;
+        }
+
+        // Anti-Flood
+        if (config.ANTI_FLOOD === 'true') {
+          const limit = parseInt(config.FLOOD_LIMIT) || 7;
+          if (!floodMap.has(sender)) {
+            floodMap.set(sender, { count: 1, timer: setTimeout(() => floodMap.delete(sender), 10000) });
+          } else {
+            const data = floodMap.get(sender);
+            data.count++;
+            if (data.count > limit && isBotAdmin) {
+              await malvin.sendMessage(from, { text: `@${senderNumber} Flood detected!`, mentions: [sender] });
+              if (config.AUTO_MUTE_SPAMMER === 'true') {
+                await malvin.groupParticipantsUpdate(from, [sender], "remove");
+              }
+              floodMap.delete(sender);
+              return;
+            }
+          }
+        }
+
+        // Anti-Link & Spam Links
+        if ((config.ANTI_LINK === 'true' || config.ANTI_SPAM_LINKS === 'true') && isUrl(body)) {
+          const spamLinks = ['t.me','bit.ly','tinyurl','goo.gl','shorturl.at','cutt.ly','linkvertise','adf.ly','ouo.io'];
+          if (spamLinks.some(l => body.toLowerCase().includes(l)) || config.ANTI_LINK === 'true') {
+            if (isBotAdmin) {
+              await malvin.sendMessage(from, { delete: mek.key });
+              if (config.AUTO_MUTE_SPAMMER === 'true') {
+                await malvin.sendMessage(from, { text: `@${senderNumber} Spam link not allowed!`, mentions: [sender] });
+                await malvin.groupParticipantsUpdate(from, [sender], "remove");
+              }
+            }
+            return;
+          }
+        }
+
+        // Anti-Foreigner
+        if (config.ANTI_FOREIGNER === 'true') {
+          const allowed = (config.ALLOWED_COUNTRY_CODES || "").split(',').map(c => c.trim());
+          if (allowed.length > 0 && !allowed.some(code => senderNumber.startsWith(code)) && isBotAdmin) {
+            await malvin.sendMessage(from, { text: `Foreign numbers restricted.` });
+            await malvin.groupParticipantsUpdate(from, [sender], "remove");
+            return;
+          }
+        }
+
+        // Anti-Bad-Word
+        if (config.ANTI_BAD_WORD === 'true') {
+          const badWords = (config.BAD_WORDS || "").toLowerCase().split(',').map(w => w.trim());
+          if (badWords.length > 0 && badWords.some(w => body.toLowerCase().includes(w)) && isBotAdmin) {
+            await malvin.sendMessage(from, { delete: mek.key });
+            await malvin.sendMessage(from, { text: `@${senderNumber} Bad word detected!`, mentions: [sender] });
+            return;
+          }
+        }
+      }
+
+      if (!body.trim()) {
+        if (config.AUTO_REACT === 'true') {
+          let emojis = config.CUSTOM_REACT_EMOJIS ? config.CUSTOM_REACT_EMOJIS.split(',').map(e => e.trim()) : 
+                       ['❤️','🔥','👍','😄','🎉','😍','😂','🤩','🙌','👏','🥰','🤗','💯','🚀','✨'];
+          await malvin.sendMessage(from, { react: { text: getRandom(emojis), key: mek.key } });
+        }
+        return;
+      }
+
+      let prefix = config.PREFIX;
+      if (!body.startsWith(prefix)) {
+        if (config.AUTO_REPLY === 'true' && !isGroup) {
+          await malvin.sendMessage(from, { text: 'Hello! I am online.' });
+        }
+        return;
+      }
 
       const command = body.slice(prefix.length).trim().split(' ')[0].toLowerCase();
       const args = body.trim().split(/ +/).slice(1);
       const q = args.join(' ');
 
       const m = sms(malvin, mek);
-
       const events = require('./malvin');
       if (!events.commands || !Array.isArray(events.commands)) return;
 
@@ -592,6 +675,18 @@ async function connectToWA() {
       console.error('Message handler error:', error);
     }
   });
+}
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor(seconds % 86400 / 3600);
+  const m = Math.floor(seconds % 3600 / 60);
+  const s = Math.floor(seconds % 60);
+  return `${d}d ${h}h ${m}m ${s}s`;
+}
+
+function getRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // Express
