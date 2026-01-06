@@ -70,6 +70,15 @@ module.exports = {
   ANTI_BOT: getConfig("ANTI_BOT") || process.env.ANTI_BOT || "true", // Block other bots
   PM_BLOCKER: getConfig("PM_BLOCKER") || process.env.PM_BLOCKER || "true", // Block private messages
 
+  // ===== ANTI-SPAM & SECURITY ENHANCEMENTS =====
+  ANTI_FLOOD: getConfig("ANTI_FLOOD") || process.env.ANTI_FLOOD || "true", // Block message flooding
+  FLOOD_LIMIT: getConfig("FLOOD_LIMIT") || process.env.FLOOD_LIMIT || "7", // Max messages allowed in 10 seconds
+  ANTI_SPAM_LINKS: getConfig("ANTI_SPAM_LINKS") || process.env.ANTI_SPAM_LINKS || "true", // Block known spam/shortened links (t.me, bit.ly, etc.)
+  ANTI_FOREIGNER: getConfig("ANTI_FOREIGNER") || process.env.ANTI_FOREIGNER || "false", // Restrict non-allowed country codes
+  ALLOWED_COUNTRY_CODES: process.env.ALLOWED_COUNTRY_CODES || "254,1,91", // Comma-separated country codes (e.g., Kenya, USA, India)
+  AUTO_MUTE_SPAMMER: getConfig("AUTO_MUTE_SPAMMER") || process.env.AUTO_MUTE_SPAMMER || "true", // Auto-kick/remove spammers
+  BAD_WORDS: process.env.BAD_WORDS || "fuck,shit,bitch,nigga,porn,sex,asshole,mf,motherfucker,dick,cock,pussy", // Comma-separated bad words list
+
   // ===== BOT BEHAVIOR & APPEARANCE =====
   DESCRIPTION: process.env.DESCRIPTION || "*ᴍᴀᴅᴇ ʙʏ ɢᴜʀᴜᴛᴇᴄʜ*", // Bot footer
   PUBLIC_MODE: getConfig("PUBLIC_MODE") || process.env.PUBLIC_MODE || "true", // Allow public commands
