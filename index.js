@@ -407,7 +407,7 @@ async function connectToWA() {
 
         const date = moment().format('YYYY-MM-DD');
         const time = moment().format('HH:mm:ss');
-        const uptime = formatUptime(process.uptime());
+        const uptime = runtime(process.uptime());
 
         const upMessage = `
 ▄▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▄
@@ -675,18 +675,6 @@ async function connectToWA() {
       console.error('Message handler error:', error);
     }
   });
-}
-
-function formatUptime(seconds) {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor(seconds % 86400 / 3600);
-  const m = Math.floor(seconds % 3600 / 60);
-  const s = Math.floor(seconds % 60);
-  return `${d}d ${h}h ${m}m ${s}s`;
-}
-
-function getRandom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // Express
