@@ -84,7 +84,7 @@ const path = require("path");
 const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
-const ownerNumber = ["218942841878"];
+let ownerNumber = []; // Dynamic - set after connection
 
 // Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
@@ -316,7 +316,7 @@ function addHelperFunctions(malvin) {
     for (let i of kon) {
       list.push({
         displayName: await malvin.getName(i + '@s.whatsapp.net'),
-        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${await malvin.getName(i + '@s.whatsapp.net')}\nFN:Owner\nitem1.TEL;waid=${i}:${i}\nitem1.X-ABLabel:Click here to chat\nEND:VCARD`,
+        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:\( {await malvin.getName(i + '@s.whatsapp.net')}\nFN:Owner\nitem1.TEL;waid= \){i}:${i}\nitem1.X-ABLabel:Click here to chat\nEND:VCARD`,
       });
     }
     malvin.sendMessage(jid, { contacts: { displayName: `${list.length} Contact`, contacts: list }, ...opts }, { quoted });
@@ -377,6 +377,11 @@ async function connectToWA() {
       }
     } else if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] Xguru Connected ✅"));
+
+      // Dynamically set owner to the linked bot's phone number
+      const linkedNumber = malvin.user.id.split(':')[0].split('@')[0]; // Extract clean phone number
+      ownerNumber = [linkedNumber];
+      console.log(chalk.green(`[ 👤 ] Owner set dynamically to linked number: ${linkedNumber}`));
 
       // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
@@ -676,9 +681,9 @@ async function connectToWA() {
       const sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
       const isGroup = from.endsWith('@g.us');
       const senderNumber = sender.split('@')[0];
-      const botNumber = malvin.user.id.split(':')[0];
+      const botNumber = malvin.user.id.split(':')[0].split('@')[0]; // Clean bot number
       const pushname = mek.pushName || 'User';
-      const isMe = botNumber.includes(senderNumber);
+      const isMe = botNumber === senderNumber;
       
       console.log('From JID:', from);
       console.log('Sender:', sender);
@@ -688,27 +693,16 @@ async function connectToWA() {
       console.log('Is me?', isMe);
       
       // ========== FIXED: OWNER CHECKING LOGIC ==========
-      // Use the SAME logic as your old script
+      // Compare numbers only for consistency
       const isOwner = ownerNumber.includes(senderNumber) || isMe;
       console.log('Is owner?', isOwner);
       // ========== END FIX ==========
       
-      // Check if user is banned
-      try {
-        const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
-        if (bannedUsers.includes(sender)) {
-          console.log('User is banned:', sender);
-          return;
-        }
-      } catch (e) {
-        console.log('Error reading ban list:', e.message);
-      }
-      
-      // Also check sudo.json for additional owners
+      // Check sudo.json for additional owners (now compares numbers)
       let isRealOwner = isOwner;
       try {
         const ownerFile = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
-        if (ownerFile.includes(sender)) {
+        if (ownerFile.includes(senderNumber)) { // Compare number only
           isRealOwner = true;
           console.log('User is in sudo.json');
         }
@@ -716,23 +710,33 @@ async function connectToWA() {
         console.log('Error reading sudo.json:', e.message);
       }
       
-      // MODE logic - FIXED to use isRealOwner
-      if (!isRealOwner) {
-        if (config.MODE === "private") {
-          console.log('MODE=private, non-owner blocked');
-          return;
-        }
-        if (config.MODE === "inbox" && isGroup) {
-          console.log('MODE=inbox, group message from non-owner blocked');
-          return;
-        }
-        if (config.MODE === "groups" && !isGroup) {
-          console.log('MODE=groups, private message from non-owner blocked');
-          return;
-        }
+      // FIXED MODE logic: Allow public mode for everyone
+      if (config.MODE === "private" && !isRealOwner) {
+        console.log('MODE=private, non-owner blocked');
+        return;
       }
+      if (config.MODE === "inbox" && isGroup && !isRealOwner) {
+        console.log('MODE=inbox, group message from non-owner blocked');
+        return;
+      }
+      if (config.MODE === "groups" && !isGroup && !isRealOwner) {
+        console.log('MODE=groups, private message from non-owner blocked');
+        return;
+      }
+      // For "public" mode, no restrictions - continue for everyone
       
       console.log('✅ User has permission to use commands');
+      
+      // Check if user is banned
+      try {
+        const bannedUsers = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
+        if (bannedUsers.includes(senderNumber)) { // Compare number
+          console.log('User is banned:', senderNumber);
+          return;
+        }
+      } catch (e) {
+        console.log('Error reading ban list:', e.message);
+      }
       
       // Load and execute command
       try {
