@@ -18,22 +18,16 @@ const {
   Browsers,
 } = require(config.BAILEYS);
 
-const {
-  getBuffer,
-  sleep,
-  getPrefix,
-} = require("./lib/functions");
-
+const { sleep } = require("./lib/functions");
 const { sms, AntiDelete } = require("./lib");
 
 const fs = require("fs");
 const path = require("path");
 const chalk = require("chalk");
 const qrcode = require("qrcode-terminal");
-const readline = require("readline");
 const P = require("pino");
 
-let ownerNumber = []; // Will be set to linked number
+let ownerNumber = []; // Dynamic owner (set after connect)
 let malvin;
 
 const sessionDir = path.join(__dirname, "sessions");
@@ -49,7 +43,7 @@ async function loadSession() {
     console.log(chalk.green("[ ✅ ] Session loaded successfully"));
     return JSON.parse(decoded.toString("utf-8"));
   } catch (err) {
-    console.error(chalk.red("Session load failed:"), err.message);
+    console.error(chalk.red("Session load error:"), err.message);
     return null;
   }
 }
@@ -76,40 +70,51 @@ async function connectToWA() {
     if (qr) qrcode.generate(qr, { small: true });
 
     if (connection === "close") {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (shouldReconnect) setTimeout(connectToWA, 5000);
+      const reconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      if (reconnect) setTimeout(connectToWA, 5000);
     }
 
     if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] Xguru Connected ✅"));
 
-      // Set owner to the linked WhatsApp number
+      // Set owner to the linked number
       const linkedNumber = malvin.user.id.split(":")[0];
       ownerNumber = [linkedNumber];
-      console.log(chalk.green(`[ 👑 ] Owner: ${linkedNumber}`));
+      console.log(chalk.green(`[ 👑 ] Owner set to: ${linkedNumber}`));
 
       // Load plugins
       const pluginDir = path.join(__dirname, "plugins");
       let loaded = 0, failed = 0;
       if (fs.existsSync(pluginDir)) {
-        fs.readdirSync(pluginDir).forEach(file => {
+        fs.readdirSync(pluginDir).forEach((file) => {
           if (file.endsWith(".js")) {
             try {
               require(path.join(pluginDir, file));
               loaded++;
             } catch (e) {
               failed++;
-              console.error(chalk.red(`Plugin ${file} failed:`), e.message);
+              console.error(chalk.red(`Plugin ${file} failed`), e.message);
             }
           }
         });
       }
-      console.log(chalk.green(`[ ✅ ] Plugins: ${loaded} loaded, ${failed} failed`));
+      console.log(chalk.green(`[ ✅ ] Plugins loaded: ${loaded} successful, ${failed} failed`));
 
-      // Startup message with your table
+      // === YOUR BEAUTIFUL STARTUP TABLE ===
       await sleep(2000);
       const jid = malvin.user.id;
-      const prefix = getPrefix();
+
+      // Safe prefix loading
+      let prefix = ".";
+      try {
+        const prefixHandler = require("./lib/prefix");
+        if (typeof prefixHandler.getPrefix === "function") {
+          prefix = prefixHandler.getPrefix();
+        }
+      } catch (err) {
+        console.log(chalk.yellow("[!] Prefix load failed → using '.'"));
+      }
+
       const now = new Date();
       const date = now.toLocaleDateString();
       const time = now.toLocaleTimeString();
@@ -147,11 +152,15 @@ async function connectToWA() {
           mimetype: "audio/mp4",
           ptt: true,
         });
-      } catch (e) {}
+        console.log(chalk.green("[ 🔊 ] Startup audio sent"));
+      } catch (e) {
+        console.log(chalk.yellow("[ ⚠️ ] Audio failed"));
+      }
 
-      // Optional group join
+      // Join group
       try {
         await malvin.groupAcceptInvite("BEAT3drbrCJ4t29Flv0vwC");
+        console.log(chalk.green("[ ✅ ] Joined support group"));
       } catch (e) {}
     }
   });
@@ -159,8 +168,8 @@ async function connectToWA() {
   malvin.ev.on("creds.update", saveCreds);
 
   malvin.ev.on("messages.update", async (updates) => {
-    for (const update of updates) {
-      if (update.update.message === null) await AntiDelete(malvin, updates);
+    for (const u of updates) {
+      if (u.update.message === null) await AntiDelete(malvin, updates);
     }
   });
 
@@ -169,12 +178,12 @@ async function connectToWA() {
     for (const call of calls) {
       if (call.status === "offer") {
         await malvin.rejectCall(call.id, call.from);
-        await malvin.sendMessage(call.from, { text: config.REJECT_MSG || "*Busy call later*" });
+        await malvin.sendMessage(call.from, { text: config.REJECT_MSG || "*Busy*" });
       }
     }
   });
 
-  // Main message handler
+  // Message handler
   malvin.ev.on("messages.upsert", async (messageData) => {
     try {
       const mek = messageData.messages[0];
@@ -183,47 +192,54 @@ async function connectToWA() {
       const from = mek.key.remoteJid;
       const sender = mek.key.participant || mek.key.remoteJid;
       const senderNumber = sender.split("@")[0];
-      const botNumber = malvin.user.id.split(":")[0]; // Linked number
+      const botNumber = malvin.user.id.split(":")[0];
 
       const isGroup = from.endsWith("@g.us");
 
-      // Owner = linked number + sudo.json
+      // Owner check: linked number + sudo.json
       let isRealOwner = ownerNumber.includes(senderNumber) || senderNumber === botNumber;
       try {
         const sudo = JSON.parse(fs.readFileSync("./lib/sudo.json", "utf-8") || "[]");
         if (sudo.includes(senderNumber)) isRealOwner = true;
       } catch (e) {}
 
-      // MODE control
+      // MODE restrictions
       if (config.MODE === "private" && !isRealOwner) return;
       if (config.MODE === "inbox" && isGroup && !isRealOwner) return;
       if (config.MODE === "groups" && !isGroup && !isRealOwner) return;
 
-      // Banned check
+      // Ban check
       try {
-        const banned = JSON.parse(fs.readFileSync("./lib/ban.json", "utf-8") || "[]");
-        if (banned.includes(senderNumber)) return;
+        const ban = JSON.parse(fs.readFileSync("./lib/ban.json", "utf-8") || "[]");
+        if (ban.includes(senderNumber)) return;
       } catch (e) {}
 
-      // Extract text
+      // Get message body
       const type = getContentType(mek.message);
       let body = "";
       if (type === "conversation") body = mek.message.conversation;
       else if (type === "extendedTextMessage") body = mek.message.extendedTextMessage.text;
       else if (["imageMessage", "videoMessage", "documentMessage"].includes(type))
-        body = mek.message[type].caption || "";
+        body = mek.message[type]?.caption || "";
 
+      // Auto-react for non-commands
       if (!body) {
         if (config.AUTO_REACT === "true") {
-          const emojis = ["❤️", "🔥", "👍", "😄", "🎉"];
+          const reacts = ["❤️", "🔥", "👍", "😄", "🎉"];
           await malvin.sendMessage(from, {
-            react: { text: emojis[Math.floor(Math.random() * emojis.length)], key: mek.key },
+            react: { text: reacts[Math.floor(Math.random() * reacts.length)], key: mek.key },
           });
         }
         return;
       }
 
-      const prefix = getPrefix();
+      // Get current prefix
+      let prefix = ".";
+      try {
+        const ph = require("./lib/prefix");
+        if (typeof ph.getPrefix === "function") prefix = ph.getPrefix();
+      } catch (e) {}
+
       if (!body.startsWith(prefix)) return;
 
       const command = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
@@ -232,7 +248,6 @@ async function connectToWA() {
 
       const m = sms(malvin, mek);
 
-      // Load commands from malvin.js
       const events = require("./malvin");
       if (!events.commands || !Array.isArray(events.commands)) return;
 
@@ -258,9 +273,8 @@ async function connectToWA() {
       };
 
       await cmd.function(malvin, mek, m, tools);
-
     } catch (error) {
-      console.error("Message handler error:", error);
+      console.error("Handler error:", error);
     }
   });
 }
