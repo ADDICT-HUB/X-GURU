@@ -40,7 +40,7 @@ module.exports = {
   AUTO_REPLY: getConfig("AUTO_REPLY") || process.env.AUTO_REPLY || "false", // Auto-reply toggle
   AUTO_STATUS_REPLY: getConfig("AUTO_STATUS_REPLY") || process.env.AUTO_STATUS_REPLY || "false", // Reply to status updates
   AUTO_STATUS_MSG: process.env.AUTO_STATUS_MSG || "*Just seen ur status 😆 🤖*", // Status reply message
-  READ_MESSAGE: getConfig("READ_MESSAGE") || process.env.READ_MESSAGE || "false", // Mark messages as read
+  READ_MESSAGE: getConfig("READ_MESSAGE") || process.env.READ_MESSAGE || "true", // Mark messages as read
   REJECT_MSG: process.env.REJECT_MSG || "*📵 Calls are not allowed on this number unless you have permission. 🚫*", // Call rejection message
   ALIVE_IMG: getConfig("ALIVE_IMG") || process.env.ALIVE_IMG || "https://files.catbox.moe/atpgij.jpg", // Alive image
   LIVE_MSG: process.env.LIVE_MSG || "> ʙᴏᴛ ɪs sᴘᴀʀᴋɪɴɢ ᴀᴄᴛɪᴠᴇ ᴀɴᴅ ᴀʟɪᴠᴇ\n\n\n> ɢɪᴛʜᴜʙ :* github.com/ADDICT-HUB/X-GURU", // Alive message
