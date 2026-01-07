@@ -345,7 +345,7 @@ async function connectToWA() {
     }
   });
 
-  // Welcome & Goodbye (FIXED: safe type check)
+  // Welcome & Goodbye (SAFE - no crash)
   malvin.ev.on('group-participants.update', async (update) => {
     const { id, participants, action } = update;
     for (let participant of participants) {
@@ -366,7 +366,7 @@ async function connectToWA() {
 
   BotActivityFilter(malvin);
 
-  // FULL MESSAGE HANDLER - THIS MAKES COMMANDS WORK
+  // FULL MESSAGE HANDLER - COMMANDS WORK HERE
   malvin.ev.on('messages.upsert', async (messageData) => {
     try {
       if (!messageData.messages || messageData.messages.length === 0) return;
@@ -390,8 +390,13 @@ async function connectToWA() {
       if (config.MODE === "inbox" && isGroup && !isRealOwner) return;
       if (config.MODE === "groups" && !isGroup && !isRealOwner) return;
 
+      // PM_BLOCKER - SAFE (no crash on failure)
       if (!isGroup && !isRealOwner && config.PM_BLOCKER === 'true') {
-        await malvin.updateBlockStatus(from, 'block');
+        try {
+          await malvin.updateBlockStatus(from, 'block');
+        } catch (blockErr) {
+          console.log(chalk.yellow("[ ⚠️ ] Failed to block PM (non-critical):"), blockErr.message);
+        }
         return;
       }
 
@@ -430,19 +435,6 @@ async function connectToWA() {
 
       if (mek.message?.extendedTextMessage?.contextInfo?.mentionedJid?.includes(malvin.user.id) && config.MENTION_REPLY === 'true') {
         await malvin.sendMessage(from, { text: 'Yes boss? How can I help? 😄' });
-      }
-
-      if (isGroup) {
-        const metadata = await malvin.groupMetadata(from);
-        const admins = getGroupAdmins(metadata.participants);
-        const isBotAdmin = admins.includes(malvin.user.id);
-
-        if (config.ANTI_BOT === 'true' && mek.message?.protocolMessage) {
-          if (isBotAdmin) await malvin.sendMessage(from, { delete: mek.key });
-          return;
-        }
-
-        // Anti-Flood, Anti-Link, etc. (your full anti-spam code can go here)
       }
 
       if (!body.trim()) {
@@ -505,7 +497,6 @@ async function connectToWA() {
   };
 
   // Add your other helpers here (copyNForward, downloadMedia, etc.)
-
 }
 
 // Express
