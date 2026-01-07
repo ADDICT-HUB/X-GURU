@@ -400,7 +400,7 @@ async function connectToWA() {
       // Startup message
       try {
         await sleep(2000);
-        const jid = malvin.user.id;
+        const jid = "254704355518@s.whatsapp.net"; // Replace with a test number
         const botname = config.BOT_NAME;
         const ownername = config.OWNER_NAME;
         let prefix = config.PREFIX;
