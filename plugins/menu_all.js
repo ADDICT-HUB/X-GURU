@@ -19,7 +19,7 @@ function toUpperStylized(str) {
 // Normalisation des catégories
 const normalize = (str) => str.toLowerCase().replace(/\s+menu$/, '').trim();
 
-// Emojis par catégorie normalisée
+// Emojis par catégorie
 const emojiByCategory = {
   ai: '🤖',
   anime: '🍥',
@@ -55,10 +55,10 @@ const emojiByCategory = {
 
 malvin({
   pattern: 'menu',
-  alias: ['allmenu'],
+  alias: ['allmenu', 'help'],
   desc: 'Show all bot commands',
   category: 'menu',
-  react: '👌',
+  react: '👑',
   filename: __filename
 }, async (malvin, mek, m, { from, sender, reply }) => {
   try {
@@ -76,18 +76,19 @@ malvin({
     };
 
     let menu = `
-*┏────〘 ᴍᴇʀᴄᴇᴅᴇs 〙───⊷*
-*┃ ᴜꜱᴇʀ : @${sender.split("@")[0]}*
-*┃ ʀᴜɴᴛɪᴍᴇ : ${uptime()}*
-*┃ ᴍᴏᴅᴇ : ${config.MODE}*
-*┃ ᴘʀᴇғɪx : 「 ${config.PREFIX}」* 
-*┃ ᴏᴡɴᴇʀ : ${config.OWNER_NAME}*
-*┃ ᴘʟᴜɢɪɴꜱ : 『 ${commands.length} 』*
-*┃ ᴅᴇᴠ : ᴍᴀʀɪsᴇʟ*
-*┃ ᴠᴇʀꜱɪᴏɴ : 2.0.0*
-*┗──────────────⊷*`;
+╔═══════════════════════════╗
+║         🔥 X GURU MENU 🔥         ║
+╠═══════════════════════════╣
+║ User         : @${sender.split("@")[0]}
+║ Runtime      : ${uptime()}
+║ Mode         : ${config.MODE.toUpperCase()}
+║ Prefix       : [ ${prefix} ]
+║ Plugins      : ${commands.length}
+║ Owner        : GuruTech
+║ Version      : 2.0.0
+╚═══════════════════════════╝`;
 
-    // Group commands by category (improved logic)
+    // Group commands by category
     const categories = {};
     for (const cmd of commands) {
       if (cmd.category && !cmd.dontAdd && cmd.pattern) {
@@ -97,35 +98,36 @@ malvin({
       }
     }
 
-    // Add sorted categories with stylized text
+    // Add categories with new table design
     for (const cat of Object.keys(categories).sort()) {
-      const emoji = emojiByCategory[cat] || '💫';
-      menu += `\n\n*┏─『 ${emoji} ${toUpperStylized(cat)} ${toUpperStylized('Menu')} 』──⊷*\n`;
+      const emoji = emojiByCategory[cat] || '✨';
+      const catName = toUpperStylized(cat) + ' MENU';
+      menu += `\n\n╔═════ ≪ ${emoji} ${catName} ≫ ═════╗`;
       for (const cmd of categories[cat].sort()) {
-        menu += `*│ ${prefix}${cmd}*\n`;
+        menu += `\n║ • \( {prefix} \){cmd}`;
       }
-      menu += `*┗──────────────⊷*`;
+      menu += `\n╚═══════════════════════════╝`;
     }
 
-    menu += `\n\n> ${config.DESCRIPTION || toUpperStylized('Explore the bot commands!')}`;
+    menu += `\n\n> ${toUpperStylized('Powered by X GURU - Made with ❤️ by GuruTech')}`;
 
-    // Context info for image message
+    // Context info
     const imageContextInfo = {
       mentionedJid: [sender],
       forwardingScore: 999,
       isForwarded: true,
       forwardedNewsletterMessageInfo: {
-        newsletterJid: config.NEWSLETTER_JID || '120363299029326322@newsletter',
-        newsletterName: config.OWNER_NAME || toUpperStylized('marisel'),
+        newsletterJid: config.NEWSLETTER_JID || '120363421164015033@newsletter',
+        newsletterName: 'GuruTech',
         serverMessageId: 143
       }
     };
 
-    // Send menu image
+    // Send menu with image
     await malvin.sendMessage(
       from,
       {
-        image: { url: config.MENU_IMAGE_URL || 'https://url.bwmxmd.online/Adams.zjrmnw18.jpeg' },
+        image: { url: config.MENU_IMAGE_URL || 'https://files.catbox.moe/atpgij.jpg' },
         caption: menu,
         contextInfo: imageContextInfo
       },
@@ -134,29 +136,21 @@ malvin({
 
     // Send audio if configured
     if (config.MENU_AUDIO_URL) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await sleep(1000);
       await malvin.sendMessage(
         from,
         {
           audio: { url: config.MENU_AUDIO_URL },
           mimetype: 'audio/mp4',
           ptt: true,
-          contextInfo: {
-            mentionedJid: [sender],
-            forwardingScore: 999,
-            isForwarded: true,
-            forwardedNewsletterMessageInfo: {
-              newsletterName: config.OWNER_NAME || toUpperStylized('marisel'),
-              serverMessageId: 143
-            }
-          }
+          contextInfo: imageContextInfo
         },
         { quoted: mek }
       );
     }
 
   } catch (e) {
-    console.error('Menu Error:', e.message);
-    await reply(`❌ ${toUpperStylized('Error')}: Failed to show menu. Try again.\n${toUpperStylized('Details')}: ${e.message}`);
+    console.error('Menu Error:', e);
+    await reply(`❌ Error loading menu. Please try again.`);
   }
 });
