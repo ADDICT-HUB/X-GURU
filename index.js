@@ -85,7 +85,7 @@ const path = require("path");
 const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
-const ownerNumber = ["218942841878"]; // Your number
+const ownerNumber = ["218942841878"]; // Your number (the one who linked the bot)
 
 // Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
@@ -216,11 +216,17 @@ async function connectToWA() {
     logger: P({ level: "silent" }),
     printQRInTerminal: !creds && !pairingCode,
     browser: Browsers.macOS("Firefox"),
-    syncFullHistory: true,
+    syncFullHistory: false, // Saves memory
     auth: state,
     version,
     getMessage: async () => ({}),
   });
+
+  // FIX SPAMMING: Remove duplicate listeners on every connect
+  malvin.ev.removeAllListeners('messages.upsert');
+  malvin.ev.removeAllListeners('group-participants.update');
+  malvin.ev.removeAllListeners('call');
+  malvin.ev.removeAllListeners('presence.update');
 
   if (pairingCode && !state.creds.registered) {
     await connectWithPairing(malvin, useMobile);
@@ -257,7 +263,7 @@ async function connectToWA() {
         console.error(chalk.red("[ ❌ ] Error loading plugins:", err.message));
       }
 
-      // Send connection message with X GURU branding
+      // Send connection message - X GURU branding
       try {
         await sleep(2000);
         const jid = malvin.decodeJid(malvin.user.id);
@@ -283,7 +289,7 @@ async function connectToWA() {
 ║ Repo         : github.com/ADDICT-HUB/X-GURU ║
 ╚══════════════════════════╝
 
-> X GURU is now fully active and ready to dominate!`;
+> X GURU is now fully active!`;
 
         const startupImage = "https://files.catbox.moe/atpgij.jpg";
         const welcomeAudio = "https://files.catbox.moe/vkvci3.mp3";
@@ -367,13 +373,12 @@ async function connectToWA() {
 
   BotActivityFilter(malvin);
 
-  // FULL MESSAGE HANDLER - COMMANDS WORK
+  // FULL MESSAGE HANDLER - OWNER ALWAYS RESPONDS
   malvin.ev.on('messages.upsert', async (messageData) => {
     try {
       if (!messageData.messages || messageData.messages.length === 0) return;
       const mek = messageData.messages[0];
       if (!mek.message) return;
-      // Removed: if (mek.key.fromMe) return;  // Allows owner commands in private
 
       const from = mek.key.remoteJid;
       const sender = mek.key.participant || mek.key.remoteJid;
@@ -381,17 +386,21 @@ async function connectToWA() {
       const botNumber = malvin.user.id.split(':')[0];
       const isGroup = from.endsWith('@g.us');
 
+      // Owner check - always allow owner (the one who linked)
       let isRealOwner = ownerNumber.includes(senderNumber) || senderNumber === botNumber;
       try {
         const sudo = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
         if (sudo.includes(senderNumber)) isRealOwner = true;
       } catch (e) {}
 
-      if (config.MODE === "private" && !isRealOwner) return;
-      if (config.MODE === "inbox" && isGroup && !isRealOwner) return;
-      if (config.MODE === "groups" && !isGroup && !isRealOwner) return;
+      // MODE CHECK - Owner always bypasses mode restrictions
+      if (!isRealOwner) {
+        if (config.MODE === "private") return;
+        if (config.MODE === "inbox" && isGroup) return;
+        if (config.MODE === "groups" && !isGroup) return;
+      }
 
-      // PM_BLOCKER - SAFE
+      // PM_BLOCKER - safe
       if (!isGroup && !isRealOwner && config.PM_BLOCKER === 'true') {
         try {
           await malvin.updateBlockStatus(from, 'block');
@@ -401,6 +410,7 @@ async function connectToWA() {
         return;
       }
 
+      // Banned users
       try {
         const banned = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
         if (banned.includes(senderNumber)) return;
@@ -429,14 +439,6 @@ async function connectToWA() {
       let body = type === 'conversation' ? mek.message.conversation : 
                  (type === 'extendedTextMessage' ? mek.message.extendedTextMessage.text : 
                  (mek.message[type]?.caption || ''));
-
-      if (mek.message.viewOnceMessage && config.ANTI_VV === 'true') {
-        await malvin.copyNForward(from, mek, false, { readViewOnce: true });
-      }
-
-      if (mek.message?.extendedTextMessage?.contextInfo?.mentionedJid?.includes(malvin.user.id) && config.MENTION_REPLY === 'true') {
-        await malvin.sendMessage(from, { text: 'Yes boss? How can I help? 😄' });
-      }
 
       if (!body.trim()) {
         if (config.AUTO_REACT === 'true') {
@@ -496,8 +498,6 @@ async function connectToWA() {
       return (decode.user && decode.server && decode.user + '@' + decode.server) || jid;
     } else return jid;
   };
-
-  // Keep your other helpers (copyNForward, downloadMedia, etc.)
 }
 
 // Express
