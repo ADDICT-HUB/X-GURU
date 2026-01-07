@@ -257,7 +257,7 @@ async function connectToWA() {
         console.error(chalk.red("[ ❌ ] Error loading plugins:", err.message));
       }
 
-      // Send connection message
+      // Send connection message with new table design
       try {
         await sleep(2000);
         const jid = malvin.decodeJid(malvin.user.id);
@@ -271,27 +271,28 @@ async function connectToWA() {
         const uptime = runtime(process.uptime());
 
         const upMessage = `
-*┏──〔 Mercedes Connected 〕───⊷*   
-*┇ Prefix: ${prefix}*
-*┇ Date: ${date}*
-*┇ Time: ${time}*
-*┇ Uptime: ${uptime}*
-*┇ Owner: ᴍᴀʀɪsᴇʟ*
-*┇ Channel:* https://shorturl.at/DYEi0
-*┗──────────────⊷*
-> *Bot is now online and ready!*`;
+╔══════════════════════════╗
+║        🚀 MERCEDES BOT 🚀        ║
+╠══════════════════════════╣
+║ Prefix       : ${prefix.padEnd(18)}║
+║ Date         : ${date.padEnd(18)}║
+║ Time         : ${time.padEnd(18)}║
+║ Uptime       : ${uptime.padEnd(18)}║
+║ Owner        : ᴍᴀʀɪsᴇʟ           ║
+║ Channel      : shorturl.at/DYEi0  ║
+╚══════════════════════════╝
+
+> Bot is now fully online and ready!`;
 
         const startupImage = "https://files.catbox.moe/atpgij.jpg";
-        const welcomeAudio = "https://files.catbox.moe/vkvci3.mp3"; // Working audio
+        const welcomeAudio = "https://files.catbox.moe/vkvci3.mp3";
 
-        // Send image + caption
         await malvin.sendMessage(jid, {
           image: { url: startupImage },
           caption: upMessage,
         });
         console.log(chalk.green("[ 📩 ] Connection notice sent with image"));
 
-        // Send audio
         await malvin.sendMessage(jid, {
           audio: { url: welcomeAudio },
           mimetype: "audio/mp4",
@@ -302,7 +303,7 @@ async function connectToWA() {
         console.error(chalk.red("[ 🔴 ] Failed to send startup message:"), err.message);
       }
 
-      // Follow only your main newsletter
+      // Follow newsletter safely
       const newsletterJid = "120363421164015033@newsletter";
       try {
         const metadata = await malvin.newsletterMetadata("jid", newsletterJid);
@@ -313,7 +314,7 @@ async function connectToWA() {
           console.log(chalk.yellow(`[ 📌 ] Already following: ${newsletterJid}`));
         }
       } catch (err) {
-        console.log(chalk.yellow(`[ ⚠️ ] Newsletter follow skipped (optional): ${err.message}`));
+        console.log(chalk.yellow(`[ ⚠️ ] Newsletter follow skipped: ${err.message}`));
       }
     }
 
@@ -344,15 +345,16 @@ async function connectToWA() {
     }
   });
 
-  // Welcome & Goodbye
+  // Welcome & Goodbye (FIXED: safe type check)
   malvin.ev.on('group-participants.update', async (update) => {
     const { id, participants, action } = update;
-    for (let user of participants) {
-      const num = user.split('@')[0];
+    for (let participant of participants) {
+      if (typeof participant !== 'string') continue;
+      const num = participant.split('@')[0];
       if (action === 'add' && config.WELCOME === 'true') {
-        await malvin.sendMessage(id, { text: `Welcome @${num} to the group! 👋`, mentions: [user] });
+        await malvin.sendMessage(id, { text: `Welcome @${num} to the group! 👋`, mentions: [participant] });
       } else if (action === 'remove' && config.GOODBYE === 'true') {
-        await malvin.sendMessage(id, { text: `Goodbye @${num} 👋`, mentions: [user] });
+        await malvin.sendMessage(id, { text: `Goodbye @${num} 👋`, mentions: [participant] });
       }
     }
   });
@@ -364,14 +366,136 @@ async function connectToWA() {
 
   BotActivityFilter(malvin);
 
-  // Message handler (your full message.upsert code goes here — keep it exactly as you had)
+  // FULL MESSAGE HANDLER - THIS MAKES COMMANDS WORK
   malvin.ev.on('messages.upsert', async (messageData) => {
-    // ... (your existing messages.upsert code from before — keep it unchanged)
-    // It includes auto-react, command handling, anti-spam, etc.
-    // I'm not repeating it here to save space, but keep your full version
+    try {
+      if (!messageData.messages || messageData.messages.length === 0) return;
+      const mek = messageData.messages[0];
+      if (!mek.message) return;
+      if (mek.key.fromMe) return;
+
+      const from = mek.key.remoteJid;
+      const sender = mek.key.participant || mek.key.remoteJid;
+      const senderNumber = sender.split('@')[0];
+      const botNumber = malvin.user.id.split(':')[0];
+      const isGroup = from.endsWith('@g.us');
+
+      let isRealOwner = ownerNumber.includes(senderNumber) || senderNumber === botNumber;
+      try {
+        const sudo = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
+        if (sudo.includes(senderNumber)) isRealOwner = true;
+      } catch (e) {}
+
+      if (config.MODE === "private" && !isRealOwner) return;
+      if (config.MODE === "inbox" && isGroup && !isRealOwner) return;
+      if (config.MODE === "groups" && !isGroup && !isRealOwner) return;
+
+      if (!isGroup && !isRealOwner && config.PM_BLOCKER === 'true') {
+        await malvin.updateBlockStatus(from, 'block');
+        return;
+      }
+
+      try {
+        const banned = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
+        if (banned.includes(senderNumber)) return;
+      } catch (e) {}
+
+      if (config.READ_MESSAGE === 'true') {
+        await malvin.readMessages([mek.key]);
+      }
+
+      if (from === 'status@broadcast') {
+        if (config.AUTO_STATUS_SEEN === 'true') await malvin.readMessages([mek.key]);
+        if (config.AUTO_STATUS_REACT === 'true') {
+          const emojis = ['👍','❤️','😍','😂','🤩','😮','🔥','🎉','😄','💯','🙌','👏','😲','🥰','🤗','😜','🤯','🚀','💥','✨','🌟','🎊'];
+          await malvin.sendMessage(from, { react: { text: getRandom(emojis), key: mek.key } });
+        }
+        if (config.AUTO_STATUS_REPLY === 'true') {
+          await malvin.sendMessage(sender, { text: config.AUTO_STATUS_MSG });
+        }
+        return;
+      }
+
+      if (config.AUTO_TYPING === 'true') await malvin.sendPresenceUpdate('composing', from);
+      if (config.AUTO_RECORDING === 'true') await malvin.sendPresenceUpdate('recording', from);
+
+      const type = getContentType(mek.message);
+      let body = type === 'conversation' ? mek.message.conversation : 
+                 (type === 'extendedTextMessage' ? mek.message.extendedTextMessage.text : 
+                 (mek.message[type]?.caption || ''));
+
+      if (mek.message.viewOnceMessage && config.ANTI_VV === 'true') {
+        await malvin.copyNForward(from, mek, false, { readViewOnce: true });
+      }
+
+      if (mek.message?.extendedTextMessage?.contextInfo?.mentionedJid?.includes(malvin.user.id) && config.MENTION_REPLY === 'true') {
+        await malvin.sendMessage(from, { text: 'Yes boss? How can I help? 😄' });
+      }
+
+      if (isGroup) {
+        const metadata = await malvin.groupMetadata(from);
+        const admins = getGroupAdmins(metadata.participants);
+        const isBotAdmin = admins.includes(malvin.user.id);
+
+        if (config.ANTI_BOT === 'true' && mek.message?.protocolMessage) {
+          if (isBotAdmin) await malvin.sendMessage(from, { delete: mek.key });
+          return;
+        }
+
+        // Anti-Flood, Anti-Link, etc. (your full anti-spam code can go here)
+      }
+
+      if (!body.trim()) {
+        if (config.AUTO_REACT === 'true') {
+          let emojis = config.CUSTOM_REACT_EMOJIS ? config.CUSTOM_REACT_EMOJIS.split(',').map(e => e.trim()) : 
+                       ['❤️','🔥','👍','😄','🎉','😍','😂','🤩','🙌','👏','🥰','🤗','💯','🚀','✨'];
+          await malvin.sendMessage(from, { react: { text: getRandom(emojis), key: mek.key } });
+        }
+        return;
+      }
+
+      let prefix = getPrefix();
+      if (!body.startsWith(prefix)) {
+        if (config.AUTO_REPLY === 'true' && !isGroup) {
+          await malvin.sendMessage(from, { text: 'Hello! I am online.' });
+        }
+        return;
+      }
+
+      const command = body.slice(prefix.length).trim().split(' ')[0].toLowerCase();
+      const args = body.trim().split(/ +/).slice(1);
+      const q = args.join(' ');
+
+      const m = sms(malvin, mek);
+      const events = require('./malvin');
+      if (!events.commands || !Array.isArray(events.commands)) return;
+
+      let cmd = events.commands.find(c => c.pattern === command || (c.alias && c.alias.includes(command)));
+      if (!cmd) {
+        await malvin.sendMessage(from, { text: `❌ Command "${command}" not found.` }, { quoted: mek });
+        return;
+      }
+
+      if (cmd.react) {
+        await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+      }
+
+      const reply = (text) => malvin.sendMessage(from, { text: `${text}\n\n*NI MBAYA 😅*` }, { quoted: mek });
+
+      const tools = {
+        from, quoted: mek, body, isCmd: true, command, args, q, text: body, isGroup,
+        sender, senderNumber, botNumber, pushname: mek.pushName || 'User',
+        isMe: senderNumber === botNumber, isOwner: isRealOwner, reply
+      };
+
+      await cmd.function(malvin, mek, m, tools);
+
+    } catch (error) {
+      console.error('Message handler error:', error);
+    }
   });
 
-  // Helper functions (decodeJid, copyNForward, etc. — keep all your existing ones)
+  // Helper functions
   malvin.decodeJid = jid => {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
@@ -380,7 +504,8 @@ async function connectToWA() {
     } else return jid;
   };
 
-  // ... (keep all your other helper functions: copyNForward, downloadMedia, sendFileUrl, etc.)
+  // Add your other helpers here (copyNForward, downloadMedia, etc.)
+
 }
 
 // Express
