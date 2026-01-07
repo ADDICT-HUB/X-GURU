@@ -7,10 +7,11 @@ process.on("unhandledRejection", (reason, p) => {
   console.error("[❗] Unhandled Promise Rejection:", reason);
 });
 
-// X GURU - By GuruTech
+// X GURU - Dynamic Owner (Person who linked the bot)
 
 const axios = require("axios");
 const config = require("./settings");
+const os = require("os"); // Fixed: was missing
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -55,7 +56,8 @@ const path = require("path");
 const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
-const ownerNumber = ["218942841878"]; // Your number (the one who linked the bot)
+// Dynamic owner - set when bot connects
+let linkedOwnerNumber = null;
 
 // Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
@@ -125,7 +127,7 @@ async function connectToWA() {
     getMessage: async () => ({}),
   });
 
-  // Prevent duplicate listeners (stops spamming)
+  // Prevent duplicate listeners
   malvin.ev.removeAllListeners('messages.upsert');
   malvin.ev.removeAllListeners('group-participants.update');
   malvin.ev.removeAllListeners('call');
@@ -145,6 +147,10 @@ async function connectToWA() {
       }
     } else if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] X GURU Connected ✅"));
+
+      // Set dynamic owner - the person who linked
+      linkedOwnerNumber = malvin.user.id.split(':')[0];
+      console.log(chalk.green(`[ 👤 ] Owner set to linked number: ${linkedOwnerNumber}`));
 
       // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
@@ -174,11 +180,11 @@ async function connectToWA() {
 ║ Bot Name     : X GURU            ║
 ║ Prefix       : ${prefix.padEnd(18)}║
 ║ Uptime       : ${uptime.padEnd(18)}║
-║ Owner        : GuruTech          ║
+║ Owner        : You (Linked)      ║
 ║ Repo         : github.com/ADDICT-HUB/X-GURU ║
 ╚══════════════════════════╝
 
-> X GURU is now active!`;
+> X GURU is now active and ready!`;
 
         await malvin.sendMessage(jid, {
           image: { url: "https://files.catbox.moe/atpgij.jpg" },
@@ -186,12 +192,12 @@ async function connectToWA() {
         });
         console.log(chalk.green("[ 📩 ] Startup message sent"));
       } catch (err) {
-        console.error(chalk.red("Startup message failed:"), err.message);
+        console.error(chalk.red("Startup failed:"), err.message);
       }
     }
 
     if (qr) {
-      console.log(chalk.red("[ 🟢 ] Scan QR to connect"));
+      console.log(chalk.red("[ 🟢 ] Scan QR"));
       qrcode.generate(qr, { small: true });
     }
   });
@@ -208,7 +214,7 @@ async function connectToWA() {
     }
   });
 
-  // Group participants (SAFE)
+  // Group participants (safe)
   malvin.ev.on('group-participants.update', async (update) => {
     const { id, participants, action } = update;
     for (let participant of participants) {
@@ -229,7 +235,7 @@ async function connectToWA() {
 
   BotActivityFilter(malvin);
 
-  // MAIN MESSAGE HANDLER - OWNER ALWAYS RESPONDS
+  // MESSAGE HANDLER - LINKED PERSON ALWAYS RESPONDS
   malvin.ev.on('messages.upsert', async (messageData) => {
     try {
       if (!messageData.messages?.length) return;
@@ -242,35 +248,25 @@ async function connectToWA() {
       const botNumber = malvin.user.id.split(':')[0];
       const isGroup = from.endsWith('@g.us');
 
-      // Owner check - YOU always get responses
-      let isRealOwner = ownerNumber.includes(senderNumber) || senderNumber === botNumber;
-      try {
-        const sudo = JSON.parse(fsSync.readFileSync("./lib/sudo.json", "utf-8") || "[]");
-        if (sudo.includes(senderNumber)) isRealOwner = true;
-      } catch (e) {}
+      // Linked person is the real owner
+      const isLinkedOwner = linkedOwnerNumber && senderNumber === linkedOwnerNumber;
 
-      // MODE check - owner bypasses all restrictions
-      if (!isRealOwner) {
+      // MODE check - linked owner bypasses all
+      if (!isLinkedOwner) {
         if (config.MODE === "private") return;
         if (config.MODE === "inbox" && isGroup) return;
         if (config.MODE === "groups" && !isGroup) return;
       }
 
-      // PM_BLOCKER - safe, owner exempt
-      if (!isGroup && !isRealOwner && config.PM_BLOCKER === 'true') {
+      // PM_BLOCKER - safe
+      if (!isGroup && !isLinkedOwner && config.PM_BLOCKER === 'true') {
         try {
           await malvin.updateBlockStatus(from, 'block');
         } catch (e) {
-          console.log(chalk.yellow("[ ⚠️ ] Block failed (ignored)"));
+          console.log(chalk.yellow("[ ⚠️ ] Block failed"));
         }
         return;
       }
-
-      // Banned
-      try {
-        const banned = JSON.parse(fsSync.readFileSync("./lib/ban.json", "utf-8") || "[]");
-        if (banned.includes(senderNumber)) return;
-      } catch (e) {}
 
       if (config.READ_MESSAGE === 'true') {
         await malvin.readMessages([mek.key]);
@@ -315,25 +311,15 @@ async function connectToWA() {
       const tools = {
         from, quoted: mek, body, isCmd: true, command, args, q, text: body, isGroup,
         sender, senderNumber, botNumber, pushname: mek.pushName || 'User',
-        isMe: senderNumber === botNumber, isOwner: isRealOwner, reply
+        isOwner: isLinkedOwner, reply
       };
 
-      await cmd.function(malvin, mek, { ...tools });
+      await cmd.function(malvin, mek, tools);
 
     } catch (error) {
-      console.error('Message handler error:', error);
+      console.error('Handler error:', error);
     }
   });
-
-  // Helper
-  malvin.decodeJid = (jid) => {
-    if (!jid) return jid;
-    if (/:\d+@/gi.test(jid)) {
-      const decode = jidDecode(jid) || {};
-      return (decode.user && decode.server && decode.user + '@' + decode.server) || jid;
-    }
-    return jid;
-  };
 }
 
 // Express
@@ -343,7 +329,7 @@ app.get("/", (req, res) => res.redirect("/marisel.html"));
 app.listen(port, () => {
   console.log(chalk.cyan(`
 ╭──[ X GURU LIVE ]─
-│🤖 Bot is running
+│🤖 Bot running
 ╰──────────────`));
 });
 
