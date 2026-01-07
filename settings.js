@@ -68,7 +68,7 @@ module.exports = {
   DELETE_LINKS: getConfig("DELETE_LINKS") || process.env.DELETE_LINKS || "false", // Auto-delete links
   ANTI_DEL_PATH: process.env.ANTI_DEL_PATH || "inbox", // Log deleted messages
   ANTI_BOT: getConfig("ANTI_BOT") || process.env.ANTI_BOT || "true", // Block other bots
-  PM_BLOCKER: getConfig("PM_BLOCKER") || process.env.PM_BLOCKER || "true", // Block private messages
+  PM_BLOCKER: getConfig("PM_BLOCKER") || process.env.PM_BLOCKER || "false", // Block private messages
 
   // ===== ANTI-SPAM & SECURITY ENHANCEMENTS =====
   ANTI_FLOOD: getConfig("ANTI_FLOOD") || process.env.ANTI_FLOOD || "true", // Block message flooding
