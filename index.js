@@ -647,9 +647,25 @@ async function connectToWA() {
       const args = body.trim().split(/ +/).slice(1);
       const q = args.join(' ');
 
+      // === HARD CODED TEST COMMAND (REMOVE AFTER TESTING) ===
+      if (command === "test" || command === "ping") {
+        await malvin.sendMessage(from, {
+          text: "✅ *Bot is alive and fully working!*\n\n" +
+                `Prefix: ${prefix}\n` +
+                `Mode: ${config.MODE}\n` +
+                `Owner: ${senderNumber === botNumber ? "You are the owner!" : "Not owner"}\n` +
+                `Time: ${moment().format('HH:mm:ss')}`
+        }, { quoted: mek });
+        return;
+      }
+      // ===================================================
+
       const m = sms(malvin, mek);
       const events = require('./malvin');
-      if (!events.commands || !Array.isArray(events.commands)) return;
+      if (!events.commands || !Array.isArray(events.commands)) {
+        console.log(chalk.yellow("[!] No commands registered from plugins"));
+        return;
+      }
 
       let cmd = events.commands.find(c => c.pattern === command || (c.alias && c.alias.includes(command)));
       if (!cmd) {
