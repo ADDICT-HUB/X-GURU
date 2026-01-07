@@ -11,7 +11,7 @@ process.on("unhandledRejection", (reason, p) => {
 
 const axios = require("axios");
 const config = require("./settings");
-const os = require("os"); // Fixed: was missing
+const os = require("os");
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -36,7 +36,6 @@ const {
   Browsers,
 } = require(config.BAILEYS);
 
-const l = console.log;
 const {
   getBuffer,
   getGroupAdmins,
@@ -48,6 +47,7 @@ const {
   sleep,
   fetchJson,
 } = require("./lib/functions");
+
 const fsSync = require("fs");
 const fs = require("fs").promises;
 const P = require("pino");
@@ -56,10 +56,10 @@ const path = require("path");
 const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
-// Dynamic owner - set when bot connects
+// Dynamic owner - set when connected
 let linkedOwnerNumber = null;
 
-// Temp directory management
+// Temp directory
 const tempDir = path.join(os.tmpdir(), "cache-temp");
 if (!fsSync.existsSync(tempDir)) {
   fsSync.mkdirSync(tempDir);
@@ -75,7 +75,7 @@ const clearTempDir = () => {
 };
 setInterval(clearTempDir, 5 * 60 * 1000);
 
-// Express server
+// Express
 const express = require("express");
 const app = express();
 const port = process.env.PORT || 7860;
@@ -93,7 +93,6 @@ if (!fsSync.existsSync(sessionDir)) {
 async function loadSession() {
   try {
     if (!config.SESSION_ID) return null;
-
     if (config.SESSION_ID.startsWith("Mercedes~")) {
       console.log(chalk.yellow("[ ⏳ ] Decoding base64 session..."));
       const base64Data = config.SESSION_ID.replace("Mercedes~", "");
@@ -104,7 +103,7 @@ async function loadSession() {
       return JSON.parse(decodedData.toString("utf-8"));
     }
   } catch (error) {
-    console.error(chalk.red("Session load error:"), error.message);
+    console.error(chalk.red("Session error:"), error.message);
     return null;
   }
 }
@@ -127,11 +126,10 @@ async function connectToWA() {
     getMessage: async () => ({}),
   });
 
-  // Prevent duplicate listeners
+  // Prevent duplicates
   malvin.ev.removeAllListeners('messages.upsert');
   malvin.ev.removeAllListeners('group-participants.update');
   malvin.ev.removeAllListeners('call');
-  malvin.ev.removeAllListeners('presence.update');
 
   malvin.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -139,7 +137,7 @@ async function connectToWA() {
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
       if (reason === DisconnectReason.loggedOut) {
-        console.log(chalk.red("[ 🛑 ] Logged out - change SESSION_ID"));
+        console.log(chalk.red("[ 🛑 ] Logged out"));
         process.exit(1);
       } else {
         console.log(chalk.red("[ ⏳️ ] Reconnecting..."));
@@ -148,9 +146,9 @@ async function connectToWA() {
     } else if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] X GURU Connected ✅"));
 
-      // Set dynamic owner - the person who linked
+      // Set dynamic owner
       linkedOwnerNumber = malvin.user.id.split(':')[0];
-      console.log(chalk.green(`[ 👤 ] Owner set to linked number: ${linkedOwnerNumber}`));
+      console.log(chalk.green(`[ 👤 ] Owner: ${linkedOwnerNumber} (linked number)`));
 
       // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
@@ -162,13 +160,13 @@ async function connectToWA() {
         });
         console.log(chalk.green("[ ✅ ] Plugins loaded"));
       } catch (err) {
-        console.error(chalk.red("[ ❌ ] Plugin load error:"), err.message);
+        console.error(chalk.red("[ ❌ ] Plugin error:"), err.message);
       }
 
       // Startup message
       try {
         await sleep(2000);
-        const jid = malvin.decodeJid(malvin.user.id);
+        const jid = malvin.user.id; // Use raw ID
 
         const prefix = getPrefix();
         const uptime = runtime(process.uptime());
@@ -184,13 +182,13 @@ async function connectToWA() {
 ║ Repo         : github.com/ADDICT-HUB/X-GURU ║
 ╚══════════════════════════╝
 
-> X GURU is now active and ready!`;
+> X GURU is now active!`;
 
         await malvin.sendMessage(jid, {
           image: { url: "https://files.catbox.moe/atpgij.jpg" },
           caption: upMessage,
         });
-        console.log(chalk.green("[ 📩 ] Startup message sent"));
+        console.log(chalk.green("[ 📩 ] Startup sent"));
       } catch (err) {
         console.error(chalk.red("Startup failed:"), err.message);
       }
@@ -228,14 +226,7 @@ async function connectToWA() {
     }
   });
 
-  // Presence
-  malvin.ev.on('presence.update', async (update) => {
-    await PresenceControl(malvin, update);
-  });
-
-  BotActivityFilter(malvin);
-
-  // MESSAGE HANDLER - LINKED PERSON ALWAYS RESPONDS
+  // MESSAGE HANDLER - LINKED OWNER ALWAYS RESPONDS
   malvin.ev.on('messages.upsert', async (messageData) => {
     try {
       if (!messageData.messages?.length) return;
@@ -248,23 +239,18 @@ async function connectToWA() {
       const botNumber = malvin.user.id.split(':')[0];
       const isGroup = from.endsWith('@g.us');
 
-      // Linked person is the real owner
       const isLinkedOwner = linkedOwnerNumber && senderNumber === linkedOwnerNumber;
 
-      // MODE check - linked owner bypasses all
       if (!isLinkedOwner) {
         if (config.MODE === "private") return;
         if (config.MODE === "inbox" && isGroup) return;
         if (config.MODE === "groups" && !isGroup) return;
       }
 
-      // PM_BLOCKER - safe
       if (!isGroup && !isLinkedOwner && config.PM_BLOCKER === 'true') {
         try {
           await malvin.updateBlockStatus(from, 'block');
-        } catch (e) {
-          console.log(chalk.yellow("[ ⚠️ ] Block failed"));
-        }
+        } catch (e) {}
         return;
       }
 
@@ -277,14 +263,7 @@ async function connectToWA() {
                  type === 'extendedTextMessage' ? mek.message.extendedTextMessage.text :
                  (mek.message[type]?.caption || '');
 
-      if (!body.trim()) {
-        if (config.AUTO_REACT === 'true') {
-          const emojis = config.CUSTOM_REACT_EMOJIS ? config.CUSTOM_REACT_EMOJIS.split(',') :
-                         ['❤️','🔥','👍','😄','🎉','😍','😂','🤩','🙌','👏','🥰','🤗','💯','🚀','✨'];
-          await malvin.sendMessage(from, { react: { text: getRandom(emojis), key: mek.key } });
-        }
-        return;
-      }
+      if (!body.trim()) return;
 
       const prefix = getPrefix();
       if (!body.startsWith(prefix)) return;
