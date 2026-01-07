@@ -7,7 +7,7 @@ process.on("unhandledRejection", (reason, p) => {
   console.error("[❗] Unhandled Promise Rejection:", reason);
 });
 
-// Marisel
+// X GURU - By GuruTech
 
 const axios = require("axios");
 const config = require("./settings");
@@ -85,7 +85,7 @@ const path = require("path");
 const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
-const ownerNumber = ["218942841878"];
+const ownerNumber = ["218942841878"]; // Your number
 
 // Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
@@ -242,7 +242,7 @@ async function connectToWA() {
         setTimeout(connectToWA, 5000);
       }
     } else if (connection === "open") {
-      console.log(chalk.green("[ 🤖 ] Mercedes Connected ✅"));
+      console.log(chalk.green("[ 🤖 ] X GURU Connected ✅"));
 
       // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
@@ -257,7 +257,7 @@ async function connectToWA() {
         console.error(chalk.red("[ ❌ ] Error loading plugins:", err.message));
       }
 
-      // Send connection message with new table design
+      // Send connection message with X GURU branding
       try {
         await sleep(2000);
         const jid = malvin.decodeJid(malvin.user.id);
@@ -272,17 +272,18 @@ async function connectToWA() {
 
         const upMessage = `
 ╔══════════════════════════╗
-║        🚀 MERCEDES BOT 🚀        ║
+║        🔥 X GURU ONLINE 🔥        ║
 ╠══════════════════════════╣
+║ Bot Name     : X GURU            ║
 ║ Prefix       : ${prefix.padEnd(18)}║
 ║ Date         : ${date.padEnd(18)}║
 ║ Time         : ${time.padEnd(18)}║
 ║ Uptime       : ${uptime.padEnd(18)}║
-║ Owner        : ᴍᴀʀɪsᴇʟ           ║
-║ Channel      : shorturl.at/DYEi0  ║
+║ Owner        : GuruTech          ║
+║ Repo         : github.com/ADDICT-HUB/X-GURU ║
 ╚══════════════════════════╝
 
-> Bot is now fully online and ready!`;
+> X GURU is now fully active and ready to dominate!`;
 
         const startupImage = "https://files.catbox.moe/atpgij.jpg";
         const welcomeAudio = "https://files.catbox.moe/vkvci3.mp3";
@@ -345,7 +346,7 @@ async function connectToWA() {
     }
   });
 
-  // Welcome & Goodbye (SAFE - no crash)
+  // Welcome & Goodbye (SAFE)
   malvin.ev.on('group-participants.update', async (update) => {
     const { id, participants, action } = update;
     for (let participant of participants) {
@@ -366,13 +367,13 @@ async function connectToWA() {
 
   BotActivityFilter(malvin);
 
-  // FULL MESSAGE HANDLER - COMMANDS WORK HERE
+  // FULL MESSAGE HANDLER - COMMANDS WORK
   malvin.ev.on('messages.upsert', async (messageData) => {
     try {
       if (!messageData.messages || messageData.messages.length === 0) return;
       const mek = messageData.messages[0];
       if (!mek.message) return;
-      if (mek.key.fromMe) return;
+      // Removed: if (mek.key.fromMe) return;  // Allows owner commands in private
 
       const from = mek.key.remoteJid;
       const sender = mek.key.participant || mek.key.remoteJid;
@@ -390,12 +391,12 @@ async function connectToWA() {
       if (config.MODE === "inbox" && isGroup && !isRealOwner) return;
       if (config.MODE === "groups" && !isGroup && !isRealOwner) return;
 
-      // PM_BLOCKER - SAFE (no crash on failure)
+      // PM_BLOCKER - SAFE
       if (!isGroup && !isRealOwner && config.PM_BLOCKER === 'true') {
         try {
           await malvin.updateBlockStatus(from, 'block');
         } catch (blockErr) {
-          console.log(chalk.yellow("[ ⚠️ ] Failed to block PM (non-critical):"), blockErr.message);
+          console.log(chalk.yellow("[ ⚠️ ] Failed to block PM (ignored):"), blockErr.message);
         }
         return;
       }
@@ -496,7 +497,7 @@ async function connectToWA() {
     } else return jid;
   };
 
-  // Add your other helpers here (copyNForward, downloadMedia, etc.)
+  // Keep your other helpers (copyNForward, downloadMedia, etc.)
 }
 
 // Express
