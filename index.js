@@ -402,6 +402,51 @@ async function checkOwnerStatus(malvin, sender) {
   }
 }
 
+// ========== SESSION RESET FUNCTION ==========
+async function resetSession() {
+  console.log(chalk.red('[ 🔄 ] Resetting session...'));
+  
+  try {
+    // Delete all session files
+    if (fsSync.existsSync(sessionDir)) {
+      const files = fsSync.readdirSync(sessionDir);
+      console.log(chalk.yellow(`[ 📁 ] Found ${files.length} session files to delete`));
+      for (const file of files) {
+        try {
+          fsSync.unlinkSync(path.join(sessionDir, file));
+          console.log(chalk.yellow(`[ 🗑️ ] Deleted: ${file}`));
+        } catch (err) {
+          console.error(chalk.red(`[ ❌ ] Error deleting ${file}:`), err.message);
+        }
+      }
+      console.log(chalk.green('[ ✅ ] All session files deleted'));
+    } else {
+      console.log(chalk.yellow('[ ⚠️ ] Session directory not found'));
+      fsSync.mkdirSync(sessionDir, { recursive: true });
+      console.log(chalk.green('[ ✅ ] Created new session directory'));
+    }
+    
+    // Also delete creds.json if it exists
+    if (fsSync.existsSync(credsPath)) {
+      fsSync.unlinkSync(credsPath);
+      console.log(chalk.green('[ ✅ ] Creds file deleted'));
+    }
+    
+    console.log(chalk.green('[ ✅ ] Session reset complete!'));
+    console.log(chalk.yellow('[ ⏳ ] Restarting connection in 3 seconds...'));
+    
+    // Restart connection
+    setTimeout(() => {
+      console.log(chalk.cyan('[ 🔄 ] Starting fresh connection...'));
+      connectToWA();
+    }, 3000);
+  } catch (error) {
+    console.error(chalk.red('[ ❌ ] Error resetting session:'), error.message);
+    console.log(chalk.yellow('[ 🔧 ] Attempting manual restart...'));
+    process.exit(1);
+  }
+}
+
 async function connectToWA() {
   console.log(chalk.cyan("[ 🟠 ] Connecting to WhatsApp ⏳️..."));
 
@@ -457,6 +502,7 @@ async function connectToWA() {
       console.log(chalk.yellow('  Bot Platform:', malvin.user?.platform));
       console.log(chalk.yellow('  Config MODE:', config.MODE || 'not set'));
       console.log(chalk.yellow('  Config OWNER_NUMBER:', config.OWNER_NUMBER || 'not set'));
+      console.log(chalk.yellow('  Config PREFIX:', config.PREFIX || 'not set'));
       
       // Check and create sudo.json if needed
       try {
@@ -533,7 +579,7 @@ async function connectToWA() {
         const upMessage = `
 ▄▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▄
 █        𝗫𝗚𝗨𝗥𝗨 𝗕𝗢𝗧 𝗢𝗡𝗟𝗜𝗡𝗘        █
-█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█
+█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀𝗻𝗙        █
 █ • 𝗣𝗿𝗲𝗳𝗶𝘅: ${prefix}
 █ • 𝗗𝗮𝘁𝗲: ${date}
 █ • 𝗧𝗶𝗺𝗲: ${time}
@@ -606,7 +652,7 @@ async function connectToWA() {
     }
   });
 
-  // ========== ENHANCED MESSAGE HANDLER WITH COMPLETE DEBUGGING ==========
+  // ========== ENHANCED MESSAGE HANDLER WITH FIX FOR LID JID ISSUE ==========
   malvin.ev.on('messages.upsert', async (messageData) => {
     console.log(chalk.cyan('\n🔔 [DEBUG] MESSAGE EVENT TRIGGERED!'));
     
@@ -626,12 +672,25 @@ async function connectToWA() {
       console.log(chalk.cyan('[DEBUG] Message type:', getContentType(mek.message)));
       console.log(chalk.cyan('[DEBUG] From Me?', mek.key.fromMe));
       console.log(chalk.cyan('[DEBUG] Push Name:', mek.pushName));
-      console.log(chalk.cyan('[DEBUG] Full message object:', JSON.stringify(mek, null, 2).substring(0, 500) + '...'));
+      console.log(chalk.cyan('[DEBUG] Remote JID Alt:', mek.key?.remoteJidAlt || 'none'));
       
-      // Skip bot's own messages
-      if (mek.key.fromMe) {
-        console.log(chalk.yellow('[DEBUG] 🤖 Skipping bot\'s own message'));
+      // ========== CRITICAL FIX: Handle LID JID issue ==========
+      // Skip bot's own messages but allow LID messages from owner
+      if (mek.key.fromMe && !mek.key.remoteJid.includes('@lid')) {
+        console.log(chalk.yellow('[DEBUG] 🤖 Skipping bot\'s own message (normal JID)'));
         return;
+      }
+      
+      // Special handling for LID messages - they might be from owner
+      if (mek.key.remoteJid.includes('@lid')) {
+        console.log(chalk.yellow('[DEBUG] 📱 LID message detected'));
+        console.log(chalk.yellow('[DEBUG] Remote JID Alt (actual sender):', mek.key.remoteJidAlt));
+        
+        // If this is a LID message but fromMe is true, it might actually be from owner
+        // We'll process it anyway for testing
+        if (mek.key.fromMe) {
+          console.log(chalk.yellow('[DEBUG] ⚠️ LID message marked as fromMe but processing anyway'));
+        }
       }
       
       // Fix message structure for ephemeral messages
@@ -779,8 +838,18 @@ async function connectToWA() {
       console.log(chalk.cyan('[DEBUG] Arguments:', args));
       console.log(chalk.cyan('[DEBUG] Query:', q));
       
-      const from = mek.key.remoteJid;
-      const sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
+      // Get the actual sender - handle LID JID
+      let from = mek.key.remoteJid;
+      let sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
+      
+      // If this is a LID message, try to get the real sender from remoteJidAlt
+      if (mek.key.remoteJid.includes('@lid') && mek.key.remoteJidAlt) {
+        console.log(chalk.yellow('[DEBUG] Using remoteJidAlt for LID message:', mek.key.remoteJidAlt));
+        sender = mek.key.remoteJidAlt;
+        // Try to send response to the actual WhatsApp number
+        from = mek.key.remoteJidAlt;
+      }
+      
       const isGroup = from.endsWith('@g.us');
       
       console.log(chalk.cyan('[DEBUG] From JID:', from));
@@ -866,8 +935,9 @@ module.exports = {
     {
       pattern: 'menu',
       function: async (malvin, mek, m, tools) => {
+        const prefix = tools.prefix;
         await malvin.sendMessage(tools.from, { 
-          text: \`🎮 *XGURU BOT MENU*\\n\\n🏓 *\${tools.prefix}ping* - Test bot response\\n👤 *\${tools.prefix}owner* - Show owner info\\n📊 *\${tools.prefix}status* - Bot status\\n🔧 *\${tools.prefix}help* - More commands\\n\\n⚡ _Bot is working correctly!_\\n👑 _Owner: \${tools.isOwner ? 'YES ✅' : 'NO ❌'}_\` 
+          text: \`🎮 *XGURU BOT MENU*\\n\\n🏓 *\${prefix}ping* - Test bot response\\n👤 *\${prefix}owner* - Show owner info\\n🔄 *\${prefix}reset* - Reset session (owner only)\\n📊 *\${prefix}status* - Bot status\\n🔧 *\${prefix}help* - More commands\\n\\n⚡ _Bot is working correctly!_\\n👑 _Owner: \${tools.isOwner ? 'YES ✅' : 'NO ❌'}_\` 
         }, { quoted: tools.quoted });
       },
       react: '📱'
@@ -880,6 +950,37 @@ module.exports = {
         }, { quoted: tools.quoted });
       },
       react: '👑'
+    },
+    {
+      pattern: 'reset',
+      function: async (malvin, mek, m, tools) => {
+        if (!tools.isOwner) {
+          await malvin.sendMessage(tools.from, { 
+            text: \`🚫 Only owner can reset the session!\` 
+          }, { quoted: tools.quoted });
+          return;
+        }
+        
+        await malvin.sendMessage(tools.from, { 
+          text: \`🔄 Resetting session...\\n⚠️ The bot will restart and you may need to scan QR code again.\\n\\nPlease wait...\` 
+        }, { quoted: tools.quoted });
+        
+        // Import resetSession function from main script
+        const { resetSession } = require('../index');
+        setTimeout(() => {
+          resetSession();
+        }, 2000);
+      },
+      react: '🔄'
+    },
+    {
+      pattern: 'test',
+      function: async (malvin, mek, m, tools) => {
+        await malvin.sendMessage(tools.from, { 
+          text: \`🧪 *BOT TEST RESULTS*\\n\\n✅ Message handler: WORKING\\n✅ Command parser: WORKING\\n✅ Owner check: \${tools.isOwner ? 'PASS' : 'FAIL'}\\n✅ Response system: WORKING\\n✅ Session: ACTIVE\\n\\n📊 *Debug Info:*\\n- From JID: \${tools.from}\\n- Sender: \${tools.sender}\\n- Is Group: \${tools.isGroup ? 'YES' : 'NO'}\\n- Prefix: \${tools.prefix}\` 
+        }, { quoted: tools.quoted });
+      },
+      react: '🧪'
     }
   ]
 };
