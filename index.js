@@ -453,6 +453,23 @@ async function resetSession() {
   }
 }
 
+// ========== FALLBACK RESPONSE FUNCTION ==========
+async function sendFallbackResponse(malvin, from, mek, prefix, isOwner, sender) {
+  try {
+    console.log(chalk.yellow('[DEBUG] ⚠️ Sending fallback response'));
+    
+    const response = `🤖 *XGURU BOT RESPONSE*\\n\\n✅ *Command Received*\\n🔤 Prefix: ${prefix}\\n👤 You are: ${isOwner ? 'Owner 👑' : 'User 👤'}\\n📱 Your number: ${sender}\\n🤖 Bot number: ${malvin.user.id.split(':')[0]}\\n\\n⚠️ *Issue Detected:*\\nThe command executed but response may not have been sent.\\n\\n🔧 *Try These Commands:*\\n• ${prefix}ping - Test response\\n• ${prefix}test - Check bot status\\n• ${prefix}owner - Owner info\\n\\n📊 *Debug Info:*\\n- Mode: ${config.MODE || 'not set'}\\n- Owner check: ${isOwner ? 'PASS' : 'FAIL'}`;
+    
+    await malvin.sendMessage(from, { 
+      text: response
+    }, { quoted: mek });
+    
+    console.log(chalk.green('[DEBUG] ✅ Fallback response sent'));
+  } catch (error) {
+    console.error(chalk.red('[DEBUG] ❌ Failed to send fallback response:'), error.message);
+  }
+}
+
 async function connectToWA() {
   console.log(chalk.cyan("[ 🟠 ] Connecting to WhatsApp ⏳️..."));
 
@@ -932,9 +949,11 @@ module.exports = {
       pattern: 'ping',
       function: async (malvin, mek, m, tools) => {
         const start = Date.now();
-        await malvin.sendMessage(tools.from, { 
+        console.log('[COMMAND] Ping command executing...');
+        const response = await malvin.sendMessage(tools.from, { 
           text: \`🏓 Pong!\\n🚀 Speed: \${Date.now() - start}ms\\n👤 You are: \${tools.isOwner ? 'Owner 🎖️' : 'User 👤'}\\n📱 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n🔤 Prefix: \${tools.command}\` 
         }, { quoted: tools.quoted });
+        console.log('[COMMAND] Ping response sent:', response?.key?.id);
       },
       react: '🏓'
     },
@@ -942,18 +961,22 @@ module.exports = {
       pattern: 'menu',
       function: async (malvin, mek, m, tools) => {
         const prefix = tools.prefix;
-        await malvin.sendMessage(tools.from, { 
+        console.log('[COMMAND] Menu command executing...');
+        const response = await malvin.sendMessage(tools.from, { 
           text: \`🎮 *XGURU BOT MENU*\\n\\n🏓 *\${prefix}ping* - Test bot response\\n👤 *\${prefix}owner* - Show owner info\\n🔄 *\${prefix}reset* - Reset session (owner only)\\n📊 *\${prefix}status* - Bot status\\n🔧 *\${prefix}help* - More commands\\n\\n⚡ _Bot is working correctly!_\\n👑 _Owner: \${tools.isOwner ? 'YES ✅' : 'NO ❌'}_\` 
         }, { quoted: tools.quoted });
+        console.log('[COMMAND] Menu response sent:', response?.key?.id);
       },
       react: '📱'
     },
     {
       pattern: 'owner',
       function: async (malvin, mek, m, tools) => {
-        await malvin.sendMessage(tools.from, { 
+        console.log('[COMMAND] Owner command executing...');
+        const response = await malvin.sendMessage(tools.from, { 
           text: \`👑 *OWNER INFORMATION*\\n\\n📱 *Bot Number:* \${tools.botNumber}\\n👤 *Your Number:* \${tools.senderNumber}\\n🎖️ *You are Owner:* \${tools.isOwner ? 'YES ✅' : 'NO ❌'}\\n📁 *Session:* Connected ✅\\n\\n💬 _Contact owner for support_\` 
         }, { quoted: tools.quoted });
+        console.log('[COMMAND] Owner response sent:', response?.key?.id);
       },
       react: '👑'
     },
@@ -961,15 +984,19 @@ module.exports = {
       pattern: 'reset',
       function: async (malvin, mek, m, tools) => {
         if (!tools.isOwner) {
-          await malvin.sendMessage(tools.from, { 
+          console.log('[COMMAND] Reset command - NOT OWNER');
+          const response = await malvin.sendMessage(tools.from, { 
             text: \`🚫 Only owner can reset the session!\\n\\n🔍 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n👑 Owner status: NO\\n\\nPlease check sudo.json or contact bot developer.\` 
           }, { quoted: tools.quoted });
+          console.log('[COMMAND] Reset denied response sent:', response?.key?.id);
           return;
         }
         
-        await malvin.sendMessage(tools.from, { 
+        console.log('[COMMAND] Reset command - OWNER APPROVED');
+        const response = await malvin.sendMessage(tools.from, { 
           text: \`🔄 Resetting session...\\n⚠️ The bot will restart and you may need to scan QR code again.\\n\\nPlease wait...\` 
         }, { quoted: tools.quoted });
+        console.log('[COMMAND] Reset response sent:', response?.key?.id);
         
         // Import resetSession function from main script
         const { resetSession } = require('../index');
@@ -982,9 +1009,11 @@ module.exports = {
     {
       pattern: 'test',
       function: async (malvin, mek, m, tools) => {
-        await malvin.sendMessage(tools.from, { 
+        console.log('[COMMAND] Test command executing...');
+        const response = await malvin.sendMessage(tools.from, { 
           text: \`🧪 *BOT TEST RESULTS*\\n\\n✅ Message handler: WORKING\\n✅ Command parser: WORKING\\n✅ Owner check: \${tools.isOwner ? 'PASS' : 'FAIL'}\\n✅ Response system: WORKING\\n✅ Session: ACTIVE\\n\\n📊 *Debug Info:*\\n- From JID: \${tools.from}\\n- Sender: \${tools.sender}\\n- Is Group: \${tools.isGroup ? 'YES' : 'NO'}\\n- Prefix: \${tools.prefix}\` 
         }, { quoted: tools.quoted });
+        console.log('[COMMAND] Test response sent:', response?.key?.id);
       },
       react: '🧪'
     },
@@ -992,9 +1021,11 @@ module.exports = {
       pattern: 'mode',
       function: async (malvin, mek, m, tools) => {
         const currentMode = config.MODE || 'public';
-        await malvin.sendMessage(tools.from, { 
+        console.log('[COMMAND] Mode command executing... Mode:', currentMode);
+        const response = await malvin.sendMessage(tools.from, { 
           text: \`⚙️ *BOT MODE SETTINGS*\\n\\n📊 Current Mode: \${currentMode}\\n👤 You are: \${tools.isOwner ? 'Owner 👑' : 'User 👤'}\\n🔑 Mode affects who can use commands:\\n\\n• public: Everyone can use\\n• private: Only owner\\n• inbox: Only private chats\\n• groups: Only groups\\n\\nCheck settings.js to change mode.\` 
         }, { quoted: tools.quoted });
+        console.log('[COMMAND] Mode response sent:', response?.key?.id);
       },
       react: '⚙️'
     },
@@ -1002,19 +1033,25 @@ module.exports = {
       pattern: 'addowner',
       function: async (malvin, mek, m, tools) => {
         if (!tools.isOwner) {
-          await malvin.sendMessage(tools.from, { 
+          console.log('[COMMAND] Addowner command - NOT OWNER');
+          const response = await malvin.sendMessage(tools.from, { 
             text: \`🚫 Only current owner can add new owners!\` 
           }, { quoted: tools.quoted });
+          console.log('[COMMAND] Addowner denied response sent:', response?.key?.id);
           return;
         }
         
         const newOwner = tools.q || tools.args[0];
         if (!newOwner) {
-          await malvin.sendMessage(tools.from, { 
+          console.log('[COMMAND] Addowner command - NO NUMBER PROVIDED');
+          const response = await malvin.sendMessage(tools.from, { 
             text: \`❌ Please provide a number: \${tools.prefix}addowner 1234567890\` 
           }, { quoted: tools.quoted });
+          console.log('[COMMAND] Addowner missing number response sent:', response?.key?.id);
           return;
         }
+        
+        console.log('[COMMAND] Addowner command - ADDING:', newOwner);
         
         let ownerFile = [];
         try {
@@ -1028,23 +1065,27 @@ module.exports = {
           const newOwnerJid = newOwner.includes('@') ? newOwner : newOwner + '@s.whatsapp.net';
           
           if (ownerFile.includes(newOwnerJid)) {
-            await malvin.sendMessage(tools.from, { 
+            const response = await malvin.sendMessage(tools.from, { 
               text: \`✅ \${newOwnerJid} is already an owner.\` 
             }, { quoted: tools.quoted });
+            console.log('[COMMAND] Addowner already exists response sent:', response?.key?.id);
             return;
           }
           
           ownerFile.push(newOwnerJid);
           fsSync.writeFileSync("./lib/sudo.json", JSON.stringify(ownerFile, null, 2));
           
-          await malvin.sendMessage(tools.from, { 
+          const response = await malvin.sendMessage(tools.from, { 
             text: \`✅ Added \${newOwnerJid} as owner!\\n🔁 Please restart bot for changes to take effect.\` 
           }, { quoted: tools.quoted });
+          console.log('[COMMAND] Addowner success response sent:', response?.key?.id);
           
         } catch (e) {
-          await malvin.sendMessage(tools.from, { 
+          console.error('[COMMAND] Addowner error:', e);
+          const response = await malvin.sendMessage(tools.from, { 
             text: \`❌ Error adding owner: \${e.message}\` 
           }, { quoted: tools.quoted });
+          console.log('[COMMAND] Addowner error response sent:', response?.key?.id);
         }
       },
       react: '👑'
@@ -1101,8 +1142,8 @@ module.exports = {
         // Send command reaction if specified
         if (cmd.react) {
           try {
-            await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }});
-            console.log(chalk.green('[DEBUG] Sent command reaction:', cmd.react));
+            const reactionResponse = await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }});
+            console.log(chalk.green('[DEBUG] Sent command reaction:', cmd.react, 'Response:', reactionResponse?.key?.id));
           } catch (error) {
             console.log(chalk.red('[DEBUG] Failed to send command reaction:', error.message));
           }
@@ -1110,6 +1151,7 @@ module.exports = {
         
         // Prepare tools object
         const reply = (text) => {
+          console.log('[TOOLS.REPLY] Sending reply:', text.substring(0, 50) + '...');
           return malvin.sendMessage(from, { text: text }, { quoted: mek });
         };
         
@@ -1135,21 +1177,42 @@ module.exports = {
         
         // Execute the command
         console.log(chalk.green('[DEBUG] 🚀 Executing command function...'));
-        await cmd.function(malvin, mek, m, tools);
-        console.log(chalk.green(`[DEBUG] ✅ Command "${command}" executed successfully`));
+        try {
+          await cmd.function(malvin, mek, m, tools);
+          console.log(chalk.green(`[DEBUG] ✅ Command "${command}" executed successfully`));
+          
+          // ========== CRITICAL: Send fallback response if no response detected ==========
+          // Wait a bit to see if response was sent
+          await sleep(1000);
+          
+          // Check if we should send a fallback response
+          // This ensures you always get SOME response
+          const shouldSendFallback = true; // Always send fallback for debugging
+          
+          if (shouldSendFallback) {
+            await sendFallbackResponse(malvin, from, mek, prefix, isRealOwner, sender);
+          }
+          
+        } catch (moduleError) {
+          console.error(chalk.red('[DEBUG] ❌ COMMAND EXECUTION ERROR:'), moduleError.message);
+          console.error(chalk.red('[DEBUG] Stack:'), moduleError.stack);
+          
+          // Send error message
+          try {
+            await malvin.sendMessage(from, {
+              text: `❌ Error executing command "${command}":\n${moduleError.message}\n\nPlease check console for details.`
+            }, { quoted: mek });
+          } catch (sendError) {
+            console.error(chalk.red('[DEBUG] Failed to send error message:', sendError.message));
+          }
+        }
         
       } catch (moduleError) {
-        console.error(chalk.red('[DEBUG] ❌ COMMAND EXECUTION ERROR:'), moduleError.message);
+        console.error(chalk.red('[DEBUG] ❌ COMMAND LOADING ERROR:'), moduleError.message);
         console.error(chalk.red('[DEBUG] Stack:'), moduleError.stack);
         
-        // Send error message
-        try {
-          await malvin.sendMessage(from, {
-            text: `❌ Error executing command "${command}":\n${moduleError.message}\n\nPlease check console for details.`
-          }, { quoted: mek });
-        } catch (sendError) {
-          console.error(chalk.red('[DEBUG] Failed to send error message:', sendError.message));
-        }
+        // Send fallback response
+        await sendFallbackResponse(malvin, from, mek, prefix, isRealOwner, sender);
       }
       
     } catch (error) {
