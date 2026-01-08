@@ -386,13 +386,19 @@ async function checkOwnerStatus(malvin, sender) {
       return cleanNum === senderNumber;
     });
     
-    const isRealOwner = isInOwnerFile || isBot || isConfigOwner || isHardcodedOwner;
+    // Check 5: Check if sender matches the linked device owner (your actual WhatsApp number)
+    // This is CRITICAL for the reset command to work
+    const botPhoneNumber = botNumber.split(':')[0]; // Get just the phone number part
+    const isLinkedDeviceOwner = senderNumber === botPhoneNumber;
+    
+    const isRealOwner = isInOwnerFile || isBot || isConfigOwner || isHardcodedOwner || isLinkedDeviceOwner;
     
     console.log(chalk.cyan('🔍 [DEBUG] Owner Check Results:'));
     console.log(chalk.cyan('  isInOwnerFile:', isInOwnerFile));
     console.log(chalk.cyan('  isBot:', isBot));
     console.log(chalk.cyan('  isConfigOwner:', isConfigOwner));
     console.log(chalk.cyan('  isHardcodedOwner:', isHardcodedOwner));
+    console.log(chalk.cyan('  isLinkedDeviceOwner:', isLinkedDeviceOwner, '(SENDER:', senderNumber, 'BOT:', botPhoneNumber, ')'));
     console.log(chalk.cyan('  FINAL isRealOwner:', isRealOwner));
     
     return isRealOwner;
@@ -880,7 +886,7 @@ async function connectToWA() {
       const isRealOwner = await checkOwnerStatus(malvin, sender);
       console.log(chalk.cyan('[DEBUG] Is owner?', isRealOwner));
       
-      // MODE logic
+      // MODE logic - BUT OWNER SHOULD BYPASS ALL MODE RESTRICTIONS
       if (!isRealOwner) {
         if (config.MODE === "private") {
           console.log(chalk.yellow('[DEBUG] MODE=private, non-owner blocked'));
@@ -956,7 +962,7 @@ module.exports = {
       function: async (malvin, mek, m, tools) => {
         if (!tools.isOwner) {
           await malvin.sendMessage(tools.from, { 
-            text: \`🚫 Only owner can reset the session!\` 
+            text: \`🚫 Only owner can reset the session!\\n\\n🔍 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n👑 Owner status: NO\\n\\nPlease check sudo.json or contact bot developer.\` 
           }, { quoted: tools.quoted });
           return;
         }
@@ -981,6 +987,67 @@ module.exports = {
         }, { quoted: tools.quoted });
       },
       react: '🧪'
+    },
+    {
+      pattern: 'mode',
+      function: async (malvin, mek, m, tools) => {
+        const currentMode = config.MODE || 'public';
+        await malvin.sendMessage(tools.from, { 
+          text: \`⚙️ *BOT MODE SETTINGS*\\n\\n📊 Current Mode: \${currentMode}\\n👤 You are: \${tools.isOwner ? 'Owner 👑' : 'User 👤'}\\n🔑 Mode affects who can use commands:\\n\\n• public: Everyone can use\\n• private: Only owner\\n• inbox: Only private chats\\n• groups: Only groups\\n\\nCheck settings.js to change mode.\` 
+        }, { quoted: tools.quoted });
+      },
+      react: '⚙️'
+    },
+    {
+      pattern: 'addowner',
+      function: async (malvin, mek, m, tools) => {
+        if (!tools.isOwner) {
+          await malvin.sendMessage(tools.from, { 
+            text: \`🚫 Only current owner can add new owners!\` 
+          }, { quoted: tools.quoted });
+          return;
+        }
+        
+        const newOwner = tools.q || tools.args[0];
+        if (!newOwner) {
+          await malvin.sendMessage(tools.from, { 
+            text: \`❌ Please provide a number: \${tools.prefix}addowner 1234567890\` 
+          }, { quoted: tools.quoted });
+          return;
+        }
+        
+        let ownerFile = [];
+        try {
+          if (fsSync.existsSync("./lib/sudo.json")) {
+            const content = fsSync.readFileSync("./lib/sudo.json", "utf-8");
+            if (content.trim()) {
+              ownerFile = JSON.parse(content);
+            }
+          }
+          
+          const newOwnerJid = newOwner.includes('@') ? newOwner : newOwner + '@s.whatsapp.net';
+          
+          if (ownerFile.includes(newOwnerJid)) {
+            await malvin.sendMessage(tools.from, { 
+              text: \`✅ \${newOwnerJid} is already an owner.\` 
+            }, { quoted: tools.quoted });
+            return;
+          }
+          
+          ownerFile.push(newOwnerJid);
+          fsSync.writeFileSync("./lib/sudo.json", JSON.stringify(ownerFile, null, 2));
+          
+          await malvin.sendMessage(tools.from, { 
+            text: \`✅ Added \${newOwnerJid} as owner!\\n🔁 Please restart bot for changes to take effect.\` 
+          }, { quoted: tools.quoted });
+          
+        } catch (e) {
+          await malvin.sendMessage(tools.from, { 
+            text: \`❌ Error adding owner: \${e.message}\` 
+          }, { quoted: tools.quoted });
+        }
+      },
+      react: '👑'
     }
   ]
 };
