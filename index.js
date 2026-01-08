@@ -1,3 +1,4 @@
+// [2025-12-27] Use my note in every script.
 // Anti-crash handler
 process.on("uncaughtException", (err) => {
   console.error("[❗] Uncaught Exception:", err.stack || err);
@@ -215,6 +216,15 @@ async function connectWithPairing(malvin, useMobile) {
 
 // Helper functions - MOVED INSIDE connectToWA function
 function addHelperFunctions(malvin) {
+  // Added decodeJid to fix the crash in lib/msg.js
+  malvin.decodeJid = (jid) => {
+    if (!jid) return jid;
+    if (/:\d+@/gi.test(jid)) {
+        let decode = jidDecode(jid) || {};
+        return (decode.user && decode.server && decode.user + "@" + decode.server) || jid;
+    } else return jid;
+  };
+
   // Helper functions for malvin object
   malvin.copyNForward = async(jid, message, forceForward = false, options = {}) => {
     let vtype;
