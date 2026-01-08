@@ -84,7 +84,8 @@ const path = require("path");
 const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
-const ownerNumber = ["218942841878"];
+// ========== UPDATED: No hardcoded owner numbers ==========
+// Bot will only recognize the linked device as owner
 
 // Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
@@ -330,75 +331,39 @@ function addHelperFunctions(malvin) {
   malvin.serializeM = mek => sms(malvin, mek);
 }
 
-// ========== CRITICAL FIX: Enhanced Owner Checking Function ==========
+// ========== UPDATED: SIMPLE Owner Checking Function ==========
+// Only checks if sender is the linked device owner
 async function checkOwnerStatus(malvin, sender) {
   try {
     console.log(chalk.cyan('🔍 [DEBUG] Checking owner status for:', sender));
     
-    // Load sudo.json
-    let ownerFile = [];
-    try {
-      if (fsSync.existsSync("./lib/sudo.json")) {
-        const content = fsSync.readFileSync("./lib/sudo.json", "utf-8");
-        if (content.trim()) {
-          ownerFile = JSON.parse(content);
-        }
-      } else {
-        // Create default sudo.json if doesn't exist
-        const defaultOwner = config.OWNER_NUMBER || "218942841878@s.whatsapp.net";
-        ownerFile = [defaultOwner];
-        fsSync.writeFileSync("./lib/sudo.json", JSON.stringify(ownerFile, null, 2));
-        console.log(chalk.yellow('📝 Created default sudo.json with owner:', defaultOwner));
-      }
-    } catch (e) {
-      console.error(chalk.red('❌ Error reading sudo.json:'), e.message);
-      ownerFile = [];
-    }
-    
-    // Get bot number
+    // Get bot's phone number (linked device owner)
     const botNumber = malvin.user?.id || '';
     console.log(chalk.cyan('🔍 [DEBUG] Bot ID:', botNumber));
-    console.log(chalk.cyan('🔍 [DEBUG] Owner file contents:', JSON.stringify(ownerFile)));
     
-    // Check multiple formats
-    const senderNumber = sender.split('@')[0];
-    const senderFullJid = sender.includes('@') ? sender : sender + '@s.whatsapp.net';
+    // Extract just the phone number part from bot ID
+    // Bot ID format: 25476202534003:4@s.whatsapp.net
+    const botPhoneNumber = botNumber.split(':')[0]; // This gives "25476202534003"
+    const senderPhoneNumber = sender.split('@')[0].split(':')[0]; // Clean sender number
     
-    // Check 1: Is sender in ownerFile?
-    const isInOwnerFile = ownerFile.some(owner => {
-      const ownerNumber = owner.replace('@s.whatsapp.net', '').replace('+', '');
-      const ownerFullJid = owner.includes('@') ? owner : owner + '@s.whatsapp.net';
-      return ownerNumber === senderNumber || ownerFullJid === sender || owner === sender;
-    });
+    console.log(chalk.cyan('🔍 [DEBUG] Bot Phone Number:', botPhoneNumber));
+    console.log(chalk.cyan('🔍 [DEBUG] Sender Phone Number:', senderPhoneNumber));
     
-    // Check 2: Is sender the bot itself?
+    // Check 1: Is sender the linked device owner?
+    const isLinkedDeviceOwner = senderPhoneNumber === botPhoneNumber;
+    
+    // Check 2: Is sender the bot itself? (for LID messages)
     const isBot = sender === botNumber;
     
-    // Check 3: Is sender the config owner?
-    const configOwner = config.OWNER_NUMBER ? 
-      config.OWNER_NUMBER.replace('+', '').replace('@s.whatsapp.net', '') : '';
-    const isConfigOwner = configOwner && (configOwner === senderNumber || 
-      configOwner + '@s.whatsapp.net' === sender);
+    // Also check if sender matches the bot's JID directly
+    const isDirectMatch = sender === botNumber;
     
-    // Check 4: Is sender in the hardcoded ownerNumber array?
-    const isHardcodedOwner = ownerNumber.some(num => {
-      const cleanNum = num.replace('+', '');
-      return cleanNum === senderNumber;
-    });
-    
-    // Check 5: Check if sender matches the linked device owner (your actual WhatsApp number)
-    // This is CRITICAL for the reset command to work
-    const botPhoneNumber = botNumber.split(':')[0]; // Get just the phone number part
-    const isLinkedDeviceOwner = senderNumber === botPhoneNumber;
-    
-    const isRealOwner = isInOwnerFile || isBot || isConfigOwner || isHardcodedOwner || isLinkedDeviceOwner;
+    const isRealOwner = isLinkedDeviceOwner || isBot || isDirectMatch;
     
     console.log(chalk.cyan('🔍 [DEBUG] Owner Check Results:'));
-    console.log(chalk.cyan('  isInOwnerFile:', isInOwnerFile));
+    console.log(chalk.cyan('  isLinkedDeviceOwner:', isLinkedDeviceOwner));
     console.log(chalk.cyan('  isBot:', isBot));
-    console.log(chalk.cyan('  isConfigOwner:', isConfigOwner));
-    console.log(chalk.cyan('  isHardcodedOwner:', isHardcodedOwner));
-    console.log(chalk.cyan('  isLinkedDeviceOwner:', isLinkedDeviceOwner, '(SENDER:', senderNumber, 'BOT:', botPhoneNumber, ')'));
+    console.log(chalk.cyan('  isDirectMatch:', isDirectMatch));
     console.log(chalk.cyan('  FINAL isRealOwner:', isRealOwner));
     
     return isRealOwner;
@@ -510,20 +475,11 @@ async function connectToWA() {
       console.log(chalk.yellow('  Config OWNER_NUMBER:', config.OWNER_NUMBER || 'not set'));
       console.log(chalk.yellow('  Config PREFIX:', config.PREFIX || 'not set'));
       
-      // Check and create sudo.json if needed
-      try {
-        if (!fsSync.existsSync("./lib/sudo.json")) {
-          const defaultOwner = config.OWNER_NUMBER || "218942841878@s.whatsapp.net";
-          fsSync.writeFileSync("./lib/sudo.json", JSON.stringify([defaultOwner], null, 2));
-          console.log(chalk.green('✅ Created sudo.json with default owner:', defaultOwner));
-        } else {
-          const sudoContent = fsSync.readFileSync("./lib/sudo.json", "utf-8");
-          console.log(chalk.green('✅ sudo.json exists. Contents:', sudoContent));
-        }
-      } catch (e) {
-        console.error(chalk.red('❌ Error checking sudo.json:'), e.message);
-      }
-
+      // CRITICAL: Log the linked device owner's phone number
+      const botPhoneNumber = malvin.user?.id ? malvin.user.id.split(':')[0] : 'Unknown';
+      console.log(chalk.yellow('🔑 [IMPORTANT] Linked Device Owner Phone:', botPhoneNumber));
+      console.log(chalk.yellow('🔑 [IMPORTANT] You can ONLY use commands from this number:', botPhoneNumber));
+      
       // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
       try {
@@ -882,33 +838,39 @@ async function connectToWA() {
         console.log(chalk.yellow('[DEBUG] Error reading ban list:', e.message));
       }
       
-      // Check if user is owner USING ENHANCED FUNCTION
+      // Check if user is owner USING SIMPLIFIED FUNCTION
       const isRealOwner = await checkOwnerStatus(malvin, sender);
       console.log(chalk.cyan('[DEBUG] Is owner?', isRealOwner));
       
-      // MODE logic - BUT OWNER SHOULD BYPASS ALL MODE RESTRICTIONS
+      // ========== MODE LOGIC - ONLY CHECK MODE FOR NON-OWNERS ==========
+      // If user is NOT the linked device owner, check mode restrictions
       if (!isRealOwner) {
-        if (config.MODE === "private") {
+        const currentMode = config.MODE || "public";
+        console.log(chalk.yellow(`[DEBUG] Checking mode for non-owner. Current mode: ${currentMode}`));
+        
+        if (currentMode === "private") {
           console.log(chalk.yellow('[DEBUG] MODE=private, non-owner blocked'));
           await malvin.sendMessage(from, { 
-            text: `🔒 This bot is in private mode. Only owner can use commands.` 
+            text: `🔒 This bot is in private mode. Only the linked device owner can use commands.` 
           }, { quoted: mek });
           return;
         }
-        if (config.MODE === "inbox" && isGroup) {
+        if (currentMode === "inbox" && isGroup) {
           console.log(chalk.yellow('[DEBUG] MODE=inbox, group message from non-owner blocked'));
           await malvin.sendMessage(from, { 
             text: `📥 This bot only works in private chat for non-owners.` 
           }, { quoted: mek });
           return;
         }
-        if (config.MODE === "groups" && !isGroup) {
+        if (currentMode === "groups" && !isGroup) {
           console.log(chalk.yellow('[DEBUG] MODE=groups, private message from non-owner blocked'));
           await malvin.sendMessage(from, { 
             text: `👥 This bot only works in groups for non-owners.` 
           }, { quoted: mek });
           return;
         }
+      } else {
+        console.log(chalk.green('[DEBUG] ✅ Linked device owner detected - bypassing all mode restrictions'));
       }
       
       console.log(chalk.green('[DEBUG] ✅ User has permission to use commands'));
@@ -934,7 +896,7 @@ module.exports = {
         const start = Date.now();
         console.log('[COMMAND] Ping command executing...');
         const response = await malvin.sendMessage(tools.from, { 
-          text: \`🏓 Pong!\\n🚀 Speed: \${Date.now() - start}ms\\n👤 You are: \${tools.isOwner ? 'Owner 🎖️' : 'User 👤'}\\n📱 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n🔤 Prefix: \${tools.command}\` 
+          text: \`🏓 Pong!\\n🚀 Speed: \${Date.now() - start}ms\\n👤 You are: \${tools.isOwner ? 'Linked Device Owner 👑' : 'User 👤'}\\n📱 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n🔤 Prefix: \${tools.command}\` 
         }, { quoted: tools.quoted });
         console.log('[COMMAND] Ping response sent:', response?.key?.id);
       },
@@ -946,7 +908,7 @@ module.exports = {
         const prefix = tools.prefix;
         console.log('[COMMAND] Menu command executing...');
         const response = await malvin.sendMessage(tools.from, { 
-          text: \`🎮 *XGURU BOT MENU*\\n\\n🏓 *\${prefix}ping* - Test bot response\\n👤 *\${prefix}owner* - Show owner info\\n🔄 *\${prefix}reset* - Reset session (owner only)\\n📊 *\${prefix}status* - Bot status\\n🔧 *\${prefix}help* - More commands\\n\\n⚡ _Bot is working correctly!_\\n👑 _Owner: \${tools.isOwner ? 'YES ✅' : 'NO ❌'}_\` 
+          text: \`🎮 *XGURU BOT MENU*\\n\\n🏓 *\${prefix}ping* - Test bot response\\n👤 *\${prefix}owner* - Show owner info\\n🔄 *\${prefix}reset* - Reset session (owner only)\\n📊 *\${prefix}status* - Bot status\\n🔧 *\${prefix}help* - More commands\\n\\n⚡ _Bot is working correctly!_\\n👑 _You are Owner: \${tools.isOwner ? 'YES ✅ (Linked Device)' : 'NO ❌'}_\` 
         }, { quoted: tools.quoted });
         console.log('[COMMAND] Menu response sent:', response?.key?.id);
       },
@@ -957,7 +919,7 @@ module.exports = {
       function: async (malvin, mek, m, tools) => {
         console.log('[COMMAND] Owner command executing...');
         const response = await malvin.sendMessage(tools.from, { 
-          text: \`👑 *OWNER INFORMATION*\\n\\n📱 *Bot Number:* \${tools.botNumber}\\n👤 *Your Number:* \${tools.senderNumber}\\n🎖️ *You are Owner:* \${tools.isOwner ? 'YES ✅' : 'NO ❌'}\\n📁 *Session:* Connected ✅\\n\\n💬 _Contact owner for support_\` 
+          text: \`👑 *OWNER INFORMATION*\\n\\n📱 *Linked Device Owner:* \${tools.botNumber}\\n👤 *Your Number:* \${tools.senderNumber}\\n🎖️ *You are Linked Owner:* \${tools.isOwner ? 'YES ✅' : 'NO ❌'}\\n📁 *Session:* Connected ✅\\n🔒 *Mode:* \${config.MODE || 'public'}\\n\\nℹ️ _Only the linked WhatsApp device can use all commands_\` 
         }, { quoted: tools.quoted });
         console.log('[COMMAND] Owner response sent:', response?.key?.id);
       },
@@ -967,17 +929,17 @@ module.exports = {
       pattern: 'reset',
       function: async (malvin, mek, m, tools) => {
         if (!tools.isOwner) {
-          console.log('[COMMAND] Reset command - NOT OWNER');
+          console.log('[COMMAND] Reset command - NOT LINKED OWNER');
           const response = await malvin.sendMessage(tools.from, { 
-            text: \`🚫 Only owner can reset the session!\\n\\n🔍 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n👑 Owner status: NO\\n\\nPlease check sudo.json or contact bot developer.\` 
+            text: \`🚫 Only the linked device owner can reset the session!\\n\\n🔍 Your number: \${tools.senderNumber}\\n🤖 Linked owner: \${tools.botNumber}\\n👑 Owner status: NO\\n\\nYou must scan the QR code from the linked WhatsApp.\` 
           }, { quoted: tools.quoted });
           console.log('[COMMAND] Reset denied response sent:', response?.key?.id);
           return;
         }
         
-        console.log('[COMMAND] Reset command - OWNER APPROVED');
+        console.log('[COMMAND] Reset command - LINKED OWNER APPROVED');
         const response = await malvin.sendMessage(tools.from, { 
-          text: \`🔄 Resetting session...\\n⚠️ The bot will restart and you may need to scan QR code again.\\n\\nPlease wait...\` 
+          text: \`🔄 Resetting session...\\n⚠️ The bot will restart and you will need to scan QR code again.\\n\\nPlease wait...\` 
         }, { quoted: tools.quoted });
         console.log('[COMMAND] Reset response sent:', response?.key?.id);
         
@@ -994,7 +956,7 @@ module.exports = {
       function: async (malvin, mek, m, tools) => {
         console.log('[COMMAND] Test command executing...');
         const response = await malvin.sendMessage(tools.from, { 
-          text: \`🧪 *BOT TEST RESULTS*\\n\\n✅ Message handler: WORKING\\n✅ Command parser: WORKING\\n✅ Owner check: \${tools.isOwner ? 'PASS' : 'FAIL'}\\n✅ Response system: WORKING\\n✅ Session: ACTIVE\\n\\n📊 *Debug Info:*\\n- From JID: \${tools.from}\\n- Sender: \${tools.sender}\\n- Is Group: \${tools.isGroup ? 'YES' : 'NO'}\\n- Prefix: \${tools.prefix}\` 
+          text: \`🧪 *BOT TEST RESULTS*\\n\\n✅ Message handler: WORKING\\n✅ Command parser: WORKING\\n✅ Owner check: \${tools.isOwner ? 'PASS (Linked Owner)' : 'FAIL'}\\n✅ Response system: WORKING\\n✅ Session: ACTIVE\\n\\n📊 *Debug Info:*\\n- From JID: \${tools.from}\\n- Sender: \${tools.sender}\\n- Is Group: \${tools.isGroup ? 'YES' : 'NO'}\\n- Prefix: \${tools.prefix}\\n- Mode: \${config.MODE || 'public'}\` 
         }, { quoted: tools.quoted });
         console.log('[COMMAND] Test response sent:', response?.key?.id);
       },
@@ -1006,72 +968,23 @@ module.exports = {
         const currentMode = config.MODE || 'public';
         console.log('[COMMAND] Mode command executing... Mode:', currentMode);
         const response = await malvin.sendMessage(tools.from, { 
-          text: \`⚙️ *BOT MODE SETTINGS*\\n\\n📊 Current Mode: \${currentMode}\\n👤 You are: \${tools.isOwner ? 'Owner 👑' : 'User 👤'}\\n🔑 Mode affects who can use commands:\\n\\n• public: Everyone can use\\n• private: Only owner\\n• inbox: Only private chats\\n• groups: Only groups\\n\\nCheck settings.js to change mode.\` 
+          text: \`⚙️ *BOT MODE SETTINGS*\\n\\n📊 Current Mode: \${currentMode}\\n👤 You are: \${tools.isOwner ? 'Linked Device Owner 👑' : 'User 👤'}\\n🔑 Mode affects who can use commands:\\n\\n• public: Everyone can use\\n• private: Only linked device owner\\n• inbox: Only private chats\\n• groups: Only groups\\n\\nCheck settings.js to change mode.\` 
         }, { quoted: tools.quoted });
         console.log('[COMMAND] Mode response sent:', response?.key?.id);
       },
       react: '⚙️'
     },
     {
-      pattern: 'addowner',
+      pattern: 'mynumber',
       function: async (malvin, mek, m, tools) => {
-        if (!tools.isOwner) {
-          console.log('[COMMAND] Addowner command - NOT OWNER');
-          const response = await malvin.sendMessage(tools.from, { 
-            text: \`🚫 Only current owner can add new owners!\` 
-          }, { quoted: tools.quoted });
-          console.log('[COMMAND] Addowner denied response sent:', response?.key?.id);
-          return;
-        }
-        
-        const newOwner = tools.q || tools.args[0];
-        if (!newOwner) {
-          console.log('[COMMAND] Addowner command - NO NUMBER PROVIDED');
-          const response = await malvin.sendMessage(tools.from, { 
-            text: \`❌ Please provide a number: \${tools.prefix}addowner 1234567890\` 
-          }, { quoted: tools.quoted });
-          console.log('[COMMAND] Addowner missing number response sent:', response?.key?.id);
-          return;
-        }
-        
-        console.log('[COMMAND] Addowner command - ADDING:', newOwner);
-        
-        let ownerFile = [];
-        try {
-          if (fsSync.existsSync("./lib/sudo.json")) {
-            const content = fsSync.readFileSync("./lib/sudo.json", "utf-8");
-            if (content.trim()) {
-              ownerFile = JSON.parse(content);
-            }
-          }
-          
-          const newOwnerJid = newOwner.includes('@') ? newOwner : newOwner + '@s.whatsapp.net';
-          
-          if (ownerFile.includes(newOwnerJid)) {
-            const response = await malvin.sendMessage(tools.from, { 
-              text: \`✅ \${newOwnerJid} is already an owner.\` 
-            }, { quoted: tools.quoted });
-            console.log('[COMMAND] Addowner already exists response sent:', response?.key?.id);
-            return;
-          }
-          
-          ownerFile.push(newOwnerJid);
-          fsSync.writeFileSync("./lib/sudo.json", JSON.stringify(ownerFile, null, 2));
-          
-          const response = await malvin.sendMessage(tools.from, { 
-            text: \`✅ Added \${newOwnerJid} as owner!\\n🔁 Please restart bot for changes to take effect.\` 
-          }, { quoted: tools.quoted });
-          console.log('[COMMAND] Addowner success response sent:', response?.key?.id);
-          
-        } catch (e) {
-          console.error('[COMMAND] Addowner error:', e);
-          const response = await malvin.sendMessage(tools.from, { 
-            text: \`❌ Error adding owner: \${e.message}\` 
-          }, { quoted: tools.quoted });
-          console.log('[COMMAND] Addowner error response sent:', response?.key?.id);
-        }
+        console.log('[COMMAND] Mynumber command executing...');
+        const botPhoneNumber = tools.botNumber;
+        const response = await malvin.sendMessage(tools.from, { 
+          text: \`📱 *NUMBER INFORMATION*\\n\\n🤖 *Linked Device Owner:* \${botPhoneNumber}\\n👤 *Your Number:* \${tools.senderNumber}\\n🔗 *Match:* \${tools.isOwner ? 'YES ✅ (You are the linked owner)' : 'NO ❌'}\\n\\nℹ️ _Commands only work from: \${botPhoneNumber}_\` 
+        }, { quoted: tools.quoted });
+        console.log('[COMMAND] Mynumber response sent:', response?.key?.id);
       },
-      react: '👑'
+      react: '📱'
     }
   ]
 };
@@ -1091,7 +1004,7 @@ module.exports = {
           
           // Try a simple test
           await malvin.sendMessage(from, { 
-            text: `🤖 Bot is working!\n📱 Your: ${sender}\n👑 Owner: ${isRealOwner ? 'YES' : 'NO'}\n💬 Send "${prefix}ping" to test` 
+            text: `🤖 Bot is working!\n📱 Your: ${sender}\n👑 Linked Owner: ${isRealOwner ? 'YES' : 'NO'}\n💬 Send "${prefix}ping" to test` 
           }, { quoted: mek });
           return;
         }
