@@ -332,46 +332,24 @@ function addHelperFunctions(malvin) {
   malvin.serializeM = mek => sms(malvin, mek);
 }
 
-// ========== UPDATED: SIMPLE Owner Checking Function ==========
+// ========== FIXED: NORMALIZED Owner Checking Function ==========
 async function checkOwnerStatus(malvin, sender) {
   try {
-    console.log(chalk.cyan('🔍 [DEBUG] Checking owner status for:', sender));
+    // 1. Normalize the sender ID (removes :device suffixes)
+    const normalizedSender = jidNormalizedUser(sender);
     
-    // Get bot's phone number (linked device owner)
-    const botNumber = malvin.user?.id || '';
-    console.log(chalk.cyan('🔍 [DEBUG] Bot ID:', botNumber));
+    // 2. Get the Bot/Linked Account ID and normalize it
+    const botId = jidNormalizedUser(malvin.user.id);
     
-    // Extract just the phone number part from bot ID
-    // Bot ID format: 254105051135:10@s.whatsapp.net
-    const botPhoneNumber = botNumber.split(':')[0]; // This gives "254105051135"
-    const senderPhoneNumber = sender.split('@')[0].split(':')[0]; // Clean sender number
+    // 3. Get Config Owner and normalize it
+    const configOwner = config.OWNER_NUMBER ? jidNormalizedUser(config.OWNER_NUMBER + "@s.whatsapp.net") : null;
+
+    // Check matches
+    const isLinkedOwner = normalizedSender === botId;
+    const isConfigOwner = configOwner && normalizedSender === configOwner;
+    const isAddedOwner = botOwners.has(normalizedSender) || botOwners.has(sender);
     
-    console.log(chalk.cyan('🔍 [DEBUG] Bot Phone Number:', botPhoneNumber));
-    console.log(chalk.cyan('🔍 [DEBUG] Sender Phone Number:', senderPhoneNumber));
-    
-    // Check 1: Is sender the linked device owner? (EXACT MATCH)
-    const isLinkedDeviceOwner = senderPhoneNumber === botPhoneNumber;
-    
-    // Check 2: Is sender the bot itself? (for LID messages)
-    const isBot = sender === botNumber;
-    
-    // Check 3: Also check full JID match for LID messages
-    const senderClean = sender.replace('@s.whatsapp.net', '').replace('@lid', '');
-    const botClean = botNumber.replace('@s.whatsapp.net', '').replace('@lid', '');
-    const isFullMatch = senderClean === botClean;
-    
-    // Check 4: Check if sender is in botOwners set (for added owners)
-    const isAddedOwner = botOwners.has(sender) || botOwners.has(senderPhoneNumber) || 
-                        botOwners.has(senderPhoneNumber + '@s.whatsapp.net');
-    
-    const isRealOwner = isLinkedDeviceOwner || isBot || isFullMatch || isAddedOwner;
-    
-    console.log(chalk.cyan('🔍 [DEBUG] Owner Check Results:'));
-    console.log(chalk.cyan('  isLinkedDeviceOwner:', isLinkedDeviceOwner));
-    console.log(chalk.cyan('  isBot:', isBot));
-    console.log(chalk.cyan('  isFullMatch:', isFullMatch));
-    console.log(chalk.cyan('  isAddedOwner:', isAddedOwner));
-    console.log(chalk.cyan('  FINAL isRealOwner:', isRealOwner));
+    const isRealOwner = isLinkedOwner || isConfigOwner || isAddedOwner;
     
     return isRealOwner;
   } catch (e) {
@@ -387,7 +365,7 @@ async function addOwner(number) {
     const fullJid = cleanNumber.includes('@') ? cleanNumber : cleanNumber + '@s.whatsapp.net';
     
     botOwners.add(fullJid);
-    botOwners.add(cleanNumber);
+    botOwners.add(jidNormalizedUser(fullJid));
     
     console.log(chalk.green(`✅ Added owner: ${fullJid}`));
     return true;
@@ -404,7 +382,7 @@ async function removeOwner(number) {
     const fullJid = cleanNumber.includes('@') ? cleanNumber : cleanNumber + '@s.whatsapp.net';
     
     botOwners.delete(fullJid);
-    botOwners.delete(cleanNumber);
+    botOwners.delete(jidNormalizedUser(fullJid));
     
     console.log(chalk.yellow(`🗑️ Removed owner: ${fullJid}`));
     return true;
@@ -510,29 +488,16 @@ async function connectToWA() {
     } else if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] Xguru Connected ✅"));
       
-      // ========== IMPORTANT: Debug Bot Information ==========
-      console.log(chalk.yellow('📊 [DEBUG] Bot Information:'));
-      console.log(chalk.yellow('  Bot ID:', malvin.user?.id));
-      console.log(chalk.yellow('  Bot Name:', malvin.user?.name));
-      console.log(chalk.yellow('  Bot Platform:', malvin.user?.platform));
-      console.log(chalk.yellow('  Config MODE:', config.MODE || 'public'));
-      console.log(chalk.yellow('  Config OWNER_NUMBER:', config.OWNER_NUMBER || 'not set'));
-      console.log(chalk.yellow('  Config PREFIX:', config.PREFIX || 'not set'));
-      
       // CRITICAL: Log the linked device owner's phone number
       const botPhoneNumber = malvin.user?.id ? malvin.user.id.split(':')[0] : 'Unknown';
-      console.log(chalk.yellow('🔑 [IMPORTANT] Linked Device Owner Phone:', botPhoneNumber));
-      console.log(chalk.yellow('🔑 [IMPORTANT] Bot Mode:', config.MODE || 'public'));
       
       // Add the linked device as owner automatically
       const linkedOwnerNumber = botPhoneNumber + '@s.whatsapp.net';
       await addOwner(linkedOwnerNumber);
-      console.log(chalk.green(`✅ Auto-added linked device as owner: ${linkedOwnerNumber}`));
       
       // Also add from config if exists
       if (config.OWNER_NUMBER) {
         await addOwner(config.OWNER_NUMBER);
-        console.log(chalk.green(`✅ Added config owner: ${config.OWNER_NUMBER}`));
       }
       
       // Load plugins
@@ -554,10 +519,6 @@ async function connectToWA() {
               }
             }
           }
-          
-          console.log(chalk.green(`[ ✅ ] Plugins loaded: ${loadedCount} successful, ${errorCount} failed`));
-        } else {
-          console.log(chalk.yellow('[ ⚠️ ] Plugins directory not found'));
         }
       } catch (err) {
         console.error(chalk.red("[ ❌ ] Error accessing plugins directory:"), err.message);
@@ -567,80 +528,26 @@ async function connectToWA() {
       try {
         await sleep(2000);
         const jid = malvin.user.id;
-        if (!jid) throw new Error("Invalid JID for bot");
-
-        const botname = "𝗫𝗚𝗨𝗥𝗨";
-        const ownername = "𝗚𝗨𝗥𝗨";
         const prefix = getPrefix();
-        const username = "𝗚𝘂𝗿𝘂𝗧𝗲𝗰𝗵";
-        const mrmalvin = `https://github.com/${username}`;
-        const repoUrl = "https://github.com/betingrich4/Mercedes";
-        const welcomeAudio = "https://files.catbox.moe/z47dgd.p3";
-        
         const currentDate = new Date();
-        const date = currentDate.toLocaleDateString();
-        const time = currentDate.toLocaleTimeString();
-        
-        function formatUptime(seconds) {
-          const days = Math.floor(seconds / (24 * 60 * 60));
-          seconds %= 24 * 60 * 60;
-          const hours = Math.floor(seconds / (60 * 60));
-          seconds %= 60 * 60;
-          const minutes = Math.floor(seconds / 60);
-          seconds = Math.floor(seconds % 60);
-          return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        }
-        
-        const uptime = formatUptime(process.uptime());
+        const uptime = process.uptime();
 
         const upMessage = `
 ▄▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▄
 █        𝗫𝗚𝗨𝗥𝗨 𝗕𝗢𝗧 𝗢𝗡𝗟𝗜𝗡𝗘        █
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀𝗻𝗙        █
 █ • 𝗣𝗿𝗲𝗳𝗶𝘅: ${prefix}
-█ • 𝗗𝗮𝘁𝗲: ${date}
-█ • 𝗧𝗶𝗺𝗲: ${time}
-█ • 𝗨𝗽𝘁𝗶𝗺𝗲: ${uptime}
-█ • 𝗢𝘄𝗻𝗲𝗿: ${ownername}
+█ • 𝗗𝗮𝘁𝗲: ${currentDate.toLocaleDateString()}
 █ • 𝗠𝗼𝗱𝗲: ${config.MODE || 'public'}
-█ • 𝗖𝗵𝗮𝗻𝗻𝗲𝗹: https://shorturl.at/DYEi0
-█
-█ ⚡ 𝗥𝗲𝗽𝗼𝗿𝘁 𝗲𝗿𝗿𝗼𝗿𝘀 𝘁𝗼 𝗱𝗲𝘃𝗲𝗹𝗼𝗽𝗲𝗿
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀`;
 
-        // Send text-only message
         await malvin.sendMessage(jid, { text: upMessage });
-        console.log(chalk.green("[ 📩 ] Connection notice sent successfully (text-only)"));
-
-        try {
-          await malvin.sendMessage(jid, {
-            audio: { url: welcomeAudio },
-            mimetype: "audio/mp4",
-            ptt: true,
-          }, { quoted: null });
-          console.log(chalk.green("[ 📩 ] Connection notice sent successfully as audio"));
-        } catch (audioError) {
-          console.error(chalk.yellow("[ ⚠️ ] Audio failed:"), audioError.message);
-        }
       } catch (sendError) {
         console.error(chalk.red(`[ 🔴 ] Error sending connection notice:`), sendError.message);
-      }
-      
-      // Newsletter following - DISABLED
-      console.log(chalk.yellow('[ ℹ️ ] Newsletter auto-follow is disabled'));
-      
-      // Join WhatsApp group
-      const inviteCode = "BEAT3drbrCJ4t29Flv0vwC";
-      try {
-        await malvin.groupAcceptInvite(inviteCode);
-        console.log(chalk.green("[ ✅ ] joined the WhatsApp group successfully"));
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Failed to join WhatsApp group:", err.message));
       }
     }
 
     if (qr && !pairingCode) {
-      console.log(chalk.red("[ 🟢 ] Scan the QR code to connect or use --pairing-code"));
       qrcode.generate(qr, { small: true });
     }
   });
@@ -672,509 +579,101 @@ async function connectToWA() {
 
   // ========== ENHANCED MESSAGE HANDLER ==========
   malvin.ev.on('messages.upsert', async (messageData) => {
-    console.log(chalk.cyan('\n🔔 [DEBUG] MESSAGE EVENT TRIGGERED!'));
-    
     try {
-      if (!messageData || !messageData.messages || messageData.messages.length === 0) {
-        console.log(chalk.yellow('[DEBUG] No messages in data'));
-        return;
-      }
+      if (!messageData || !messageData.messages || messageData.messages.length === 0) return;
       
       const mek = messageData.messages[0];
-      if (!mek || !mek.message) {
-        console.log(chalk.yellow('[DEBUG] No message content'));
-        return;
-      }
+      if (!mek || !mek.message) return;
       
-      console.log(chalk.cyan('[DEBUG] 📨 Message received from:', mek.key?.remoteJid));
-      console.log(chalk.cyan('[DEBUG] Message type:', getContentType(mek.message)));
-      console.log(chalk.cyan('[DEBUG] From Me?', mek.key.fromMe));
-      console.log(chalk.cyan('[DEBUG] Push Name:', mek.pushName));
-      console.log(chalk.cyan('[DEBUG] Remote JID Alt:', mek.key?.remoteJidAlt || 'none'));
-      
-      // Skip bot's own messages but allow LID messages from owner
-      if (mek.key.fromMe && !mek.key.remoteJid.includes('@lid')) {
-        console.log(chalk.yellow('[DEBUG] 🤖 Skipping bot\'s own message (normal JID)'));
-        return;
-      }
-      
-      // Special handling for LID messages
-      if (mek.key.remoteJid.includes('@lid')) {
-        console.log(chalk.yellow('[DEBUG] 📱 LID message detected'));
-        console.log(chalk.yellow('[DEBUG] Remote JID Alt (actual sender):', mek.key.remoteJidAlt));
-        
-        if (mek.key.fromMe) {
-          console.log(chalk.yellow('[DEBUG] ⚠️ LID message marked as fromMe but processing anyway'));
-        }
-      }
-      
-      // Fix message structure for ephemeral messages
+      // Fix message structure for ephemeral/viewOnce messages
       const contentType = getContentType(mek.message);
-      if (contentType === 'ephemeralMessage') {
-        mek.message = mek.message.ephemeralMessage.message;
-        console.log(chalk.cyan('[DEBUG] Fixed ephemeral message'));
-      }
-      
-      // Handle view once messages
-      if (mek.message.viewOnceMessageV2) {
-        mek.message = mek.message.viewOnceMessageV2.message;
-        console.log(chalk.cyan('[DEBUG] Fixed view once message'));
-      }
-      
-      // Read message if enabled
-      if (config.READ_MESSAGE === 'true') {
-        try {
-          await malvin.readMessages([mek.key]);
-        } catch (e) {
-          console.log(chalk.yellow('[DEBUG] Failed to read message:', e.message));
-        }
-      }
-      
-      // Handle status messages
-      if (mek.key && mek.key.remoteJid === 'status@broadcast') {
-        console.log(chalk.cyan('[DEBUG] 📱 Status update received'));
-        
-        if (config.AUTO_STATUS_SEEN === "true") {
-          await malvin.readMessages([mek.key]);
-        }
-        
-        if (config.AUTO_STATUS_REACT === "true") {
-          try {
-            const jawadlike = malvin.user.id;
-            const statusEmojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗'];
-            const randomEmoji = statusEmojis[Math.floor(Math.random() * statusEmojis.length)];
-            await malvin.sendMessage(mek.key.remoteJid, { 
-              react: { text: randomEmoji, key: mek.key } 
-            }, { statusJidList: [mek.key.participant, jawadlike] });
-          } catch (e) {
-            console.log(chalk.yellow('[DEBUG] Failed to react to status:', e.message));
-          }
-        }
-        
-        if (config.AUTO_STATUS_REPLY === "true") {
-          try {
-            const user = mek.key.participant;
-            const text = `${config.AUTO_STATUS_MSG || 'Nice status!'}`;
-            await malvin.sendMessage(user, { text: text }, { quoted: mek });
-          } catch (e) {
-            console.log(chalk.yellow('[DEBUG] Failed to reply to status:', e.message));
-          }
-        }
-        return;
-      }
-      
-      // Save message to database
-      try {
-        await saveMessage(mek);
-      } catch (e) {
-        console.log(chalk.yellow('[DEBUG] Failed to save message:', e.message));
-      }
+      if (contentType === 'ephemeralMessage') mek.message = mek.message.ephemeralMessage.message;
+      if (mek.message.viewOnceMessageV2) mek.message = mek.message.viewOnceMessageV2.message;
       
       // Initialize m variable with sms function
-      let m;
-      try {
-        if (typeof sms === 'function') {
-          m = sms(malvin, mek);
-          console.log(chalk.green('[DEBUG] ✅ SMS function executed'));
-        } else {
-          console.log(chalk.red('[DEBUG] ❌ SMS function not available'));
-          m = { message: mek.message };
-        }
-      } catch (e) {
-        console.log(chalk.red('[DEBUG] Failed to run sms function:', e.message));
-        m = { message: mek.message };
-      }
+      let m = (typeof sms === 'function') ? sms(malvin, mek) : { message: mek.message };
       
       // Extract message text
       const type = getContentType(mek.message);
       let body = '';
+      if (type === 'conversation') body = mek.message.conversation;
+      else if (type === 'extendedTextMessage') body = mek.message.extendedTextMessage?.text;
+      else if (type === 'imageMessage') body = mek.message.imageMessage?.caption;
+      else if (type === 'videoMessage') body = mek.message.videoMessage?.caption;
+      else if (type === 'documentMessage') body = mek.message.documentMessage?.caption;
+      else if (type === 'audioMessage') body = mek.message.audioMessage?.caption;
       
-      if (type === 'conversation') {
-        body = mek.message.conversation || '';
-      } else if (type === 'extendedTextMessage') {
-        body = mek.message.extendedTextMessage?.text || '';
-      } else if (type === 'imageMessage') {
-        body = mek.message.imageMessage?.caption || '';
-      } else if (type === 'videoMessage') {
-        body = mek.message.videoMessage?.caption || '';
-      } else if (type === 'documentMessage') {
-        body = mek.message.documentMessage?.caption || '';
-      } else if (type === 'audioMessage') {
-        body = mek.message.audioMessage?.caption || '';
-      }
-      
-      console.log(chalk.cyan('[DEBUG] 📝 Message body:', body));
-      
-      if (!body || body.trim() === '') {
-        console.log(chalk.yellow('[DEBUG] Empty message body, checking for media-only messages'));
-        if (type === 'imageMessage' || type === 'videoMessage' || type === 'documentMessage') {
-          console.log(chalk.cyan('[DEBUG] Media message without caption'));
-        }
-        return;
-      }
-      
+      if (!body) body = '';
       const prefix = getPrefix();
-      console.log(chalk.cyan('[DEBUG] 🔤 Prefix:', prefix));
-      
       const isCmd = body.startsWith(prefix);
-      console.log(chalk.cyan('[DEBUG] Is command?', isCmd));
       
-      if (!isCmd) {
-        console.log(chalk.yellow('[DEBUG] Not a command, checking for auto-react'));
-        
-        // Auto react if enabled
-        if (config.AUTO_REACT === 'true') {
-          try {
-            const reactionsList = ['❤️', '🔥', '👍', '😄', '🎉'];
-            const randomReaction = reactionsList[Math.floor(Math.random() * reactionsList.length)];
-            await malvin.sendMessage(mek.key.remoteJid, {
-              react: { 
-                text: randomReaction, 
-                key: mek.key
-              }
-            });
-            console.log(chalk.green('[DEBUG] ✅ Auto-reacted to message'));
-          } catch (error) {
-            console.log(chalk.red('[DEBUG] Failed to auto-react:', error.message));
-          }
-        }
+      // SKIP LOGIC: Skip own messages UNLESS it's a command
+      if (mek.key.fromMe && !isCmd) return;
+      
+      // Handle status messages
+      if (mek.key && mek.key.remoteJid === 'status@broadcast') {
+        if (config.AUTO_STATUS_SEEN === "true") await malvin.readMessages([mek.key]);
         return;
       }
       
-      // It's a command!
-      console.log(chalk.green('[DEBUG] 🎯 COMMAND DETECTED!'));
-      
+      await saveMessage(mek);
+      if (!isCmd) return;
+
       const command = body.slice(prefix.length).trim().split(' ').shift().toLowerCase();
       const args = body.trim().split(/ +/).slice(1);
       const q = args.join(' ');
       
-      console.log(chalk.cyan('[DEBUG] Command name:', command));
-      console.log(chalk.cyan('[DEBUG] Arguments:', args));
-      console.log(chalk.cyan('[DEBUG] Query:', q));
-      
-      // Get the actual sender - handle LID JID
       let from = mek.key.remoteJid;
       let sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
       
-      // If this is a LID message, try to get the real sender from remoteJidAlt
       if (mek.key.remoteJid.includes('@lid') && mek.key.remoteJidAlt) {
-        console.log(chalk.yellow('[DEBUG] Using remoteJidAlt for LID message:', mek.key.remoteJidAlt));
         sender = mek.key.remoteJidAlt;
         from = mek.key.remoteJidAlt;
       }
       
       const isGroup = from.endsWith('@g.us');
-      
-      console.log(chalk.cyan('[DEBUG] From JID:', from));
-      console.log(chalk.cyan('[DEBUG] Sender:', sender));
-      console.log(chalk.cyan('[DEBUG] Is group?', isGroup));
-      
-      // Check if user is banned
-      try {
-        let bannedUsers = [];
-        if (fsSync.existsSync("./lib/ban.json")) {
-          const banContent = fsSync.readFileSync("./lib/ban.json", "utf-8");
-          if (banContent.trim()) {
-            bannedUsers = JSON.parse(banContent);
-          }
-        }
-        if (bannedUsers.includes(sender)) {
-          console.log(chalk.red('[DEBUG] User is banned:', sender));
-          await malvin.sendMessage(from, { 
-            text: `🚫 You are banned from using this bot.` 
-          }, { quoted: mek });
-          return;
-        }
-      } catch (e) {
-        console.log(chalk.yellow('[DEBUG] Error reading ban list:', e.message));
-      }
-      
-      // Check if user is owner
       const isRealOwner = await checkOwnerStatus(malvin, sender);
-      console.log(chalk.cyan('[DEBUG] Is owner?', isRealOwner));
       
       // ========== MODE LOGIC ==========
       const currentMode = config.MODE || "public";
-      console.log(chalk.yellow(`[DEBUG] Current mode: ${currentMode}`));
       
-      // If mode is "private", only owners can use commands
-      if (currentMode === "private" && !isRealOwner) {
-        console.log(chalk.yellow('[DEBUG] MODE=private, non-owner blocked'));
-        await malvin.sendMessage(from, { 
-          text: `🔒 This bot is in private mode. Only owners can use commands.` 
-        }, { quoted: mek });
-        return;
-      }
-      
-      // If mode is "inbox", non-owners can only use in private chats
-      if (currentMode === "inbox" && !isRealOwner && isGroup) {
-        console.log(chalk.yellow('[DEBUG] MODE=inbox, group message from non-owner blocked'));
-        await malvin.sendMessage(from, { 
-          text: `📥 This bot only works in private chat for non-owners.` 
-        }, { quoted: mek });
-        return;
-      }
-      
-      // If mode is "groups", non-owners can only use in groups
-      if (currentMode === "groups" && !isRealOwner && !isGroup) {
-        console.log(chalk.yellow('[DEBUG] MODE=groups, private message from non-owner blocked'));
-        await malvin.sendMessage(from, { 
-          text: `👥 This bot only works in groups for non-owners.` 
-        }, { quoted: mek });
-        return;
-      }
-      
-      // If mode is "public", everyone can use (no restrictions)
-      console.log(chalk.green('[DEBUG] ✅ User has permission to use commands'));
+      if (currentMode === "private" && !isRealOwner) return;
+      if (currentMode === "inbox" && !isRealOwner && isGroup) return;
+      if (currentMode === "groups" && !isRealOwner && !isGroup) return;
       
       // Load and execute command
       try {
-        console.log(chalk.cyan('[DEBUG] 📂 Loading commands from ./malvin'));
-        
-        // Check if malvin.js exists
-        if (!fsSync.existsSync("./malvin.js") && !fsSync.existsSync("./malvin/index.js")) {
-          console.log(chalk.red('[DEBUG] ❌ malvin.js not found'));
-          
-          // Create a simple test command file
-          const testCommand = `
-const fsSync = require('fs');
-const path = require('path');
-
-module.exports = {
-  commands: [
-    {
-      pattern: 'ping',
-      function: async (malvin, mek, m, tools) => {
-        const start = Date.now();
-        console.log('[COMMAND] Ping command executing...');
-        const response = await malvin.sendMessage(tools.from, { 
-          text: \`🏓 Pong!\\n🚀 Speed: \${Date.now() - start}ms\\n👤 You are: \${tools.isOwner ? 'Owner 👑' : 'User 👤'}\\n📱 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n🔤 Prefix: \${tools.command}\` 
-        }, { quoted: tools.quoted });
-        console.log('[COMMAND] Ping response sent:', response?.key?.id);
-      },
-      react: '🏓'
-    },
-    {
-      pattern: 'menu',
-      function: async (malvin, mek, m, tools) => {
-        const prefix = tools.prefix;
-        console.log('[COMMAND] Menu command executing...');
-        const response = await malvin.sendMessage(tools.from, { 
-          text: \`🎮 *XGURU BOT MENU*\\n\\n🏓 *\${prefix}ping* - Test bot response\\n👤 *\${prefix}owner* - Show owner info\\n🔄 *\${prefix}reset* - Reset session (owner only)\\n📊 *\${prefix}status* - Bot status\\n👑 *\${prefix}addowner* - Add new owner (owner only)\\n🔧 *\${prefix}help* - More commands\\n\\n⚡ _Bot is working correctly!_\\n👑 _You are Owner: \${tools.isOwner ? 'YES ✅' : 'NO ❌'}_\` 
-        }, { quoted: tools.quoted });
-        console.log('[COMMAND] Menu response sent:', response?.key?.id);
-      },
-      react: '📱'
-    },
-    {
-      pattern: 'owner',
-      function: async (malvin, mek, m, tools) => {
-        console.log('[COMMAND] Owner command executing...');
-        const response = await malvin.sendMessage(tools.from, { 
-          text: \`👑 *OWNER INFORMATION*\\n\\n📱 *Bot Number:* \${tools.botNumber}\\n👤 *Your Number:* \${tools.senderNumber}\\n🎖️ *You are Owner:* \${tools.isOwner ? 'YES ✅' : 'NO ❌'}\\n🔒 *Mode:* \${config.MODE || 'public'}\\n📁 *Session:* Connected ✅\\n\\n💬 _Only owners can use all commands_\` 
-        }, { quoted: tools.quoted });
-        console.log('[COMMAND] Owner response sent:', response?.key?.id);
-      },
-      react: '👑'
-    },
-    {
-      pattern: 'mode',
-      function: async (malvin, mek, m, tools) => {
-        const currentMode = config.MODE || 'public';
-        console.log('[COMMAND] Mode command executing... Mode:', currentMode);
-        const response = await malvin.sendMessage(tools.from, { 
-          text: \`⚙️ *BOT MODE SETTINGS*\\n\\n📊 Current Mode: \${currentMode}\\n👤 You are: \${tools.isOwner ? 'Owner 👑' : 'User 👤'}\\n🔑 Mode affects who can use commands:\\n\\n• public: Everyone can use\\n• private: Only owners\\n• inbox: Only private chats\\n• groups: Only groups\\n\\nCheck settings.js to change mode.\` 
-        }, { quoted: tools.quoted });
-        console.log('[COMMAND] Mode response sent:', response?.key?.id);
-      },
-      react: '⚙️'
-    },
-    {
-      pattern: 'addowner',
-      function: async (malvin, mek, m, tools) => {
-        console.log('[COMMAND] Addowner command executing...');
-        
-        if (!tools.isOwner) {
-          console.log('[COMMAND] Addowner - NOT OWNER');
-          const response = await malvin.sendMessage(tools.from, { 
-            text: \`🚫 Only current owners can add new owners!\\n\\n🔍 Your number: \${tools.senderNumber}\\n🤖 Bot number: \${tools.botNumber}\\n👑 You are owner: NO\\n\\nYou must be an owner to use this command.\` 
-          }, { quoted: tools.quoted });
-          console.log('[COMMAND] Addowner denied response sent:', response?.key?.id);
-          return;
-        }
-        
-        const newOwner = tools.q || tools.args[0];
-        if (!newOwner) {
-          console.log('[COMMAND] Addowner - NO NUMBER PROVIDED');
-          const response = await malvin.sendMessage(tools.from, { 
-            text: \`❌ Please provide a number: \${tools.prefix}addowner 1234567890\` 
-          }, { quoted: tools.quoted });
-          console.log('[COMMAND] Addowner missing number response sent:', response?.key?.id);
-          return;
-        }
-        
-        console.log('[COMMAND] Addowner - ADDING:', newOwner);
-        
-        try {
-          // Import addOwner function from index.js
-          const { addOwner } = require('../index');
-          const success = await addOwner(newOwner);
-          
-          if (success) {
-            const response = await malvin.sendMessage(tools.from, { 
-              text: \`✅ Added \${newOwner} as owner!\\n\\nThey can now use owner commands.\` 
-            }, { quoted: tools.quoted });
-            console.log('[COMMAND] Addowner success response sent:', response?.key?.id);
-          } else {
-            const response = await malvin.sendMessage(tools.from, { 
-              text: \`❌ Failed to add owner. Check console for details.\` 
-            }, { quoted: tools.quoted });
-            console.log('[COMMAND] Addowner failed response sent:', response?.key?.id);
-          }
-        } catch (e) {
-          console.error('[COMMAND] Addowner error:', e);
-          const response = await malvin.sendMessage(tools.from, { 
-            text: \`❌ Error adding owner: \${e.message}\` 
-          }, { quoted: tools.quoted });
-          console.log('[COMMAND] Addowner error response sent:', response?.key?.id);
-        }
-      },
-      react: '👑'
-    }
-  ]
-};
-`;
-          
-          fsSync.writeFileSync("./malvin.js", testCommand);
-          console.log(chalk.green('[DEBUG] ✅ Created test malvin.js with basic commands'));
-        }
-        
         const events = require('./malvin');
+        if (!events || !events.commands) return;
         
-        if (!events || !events.commands || !Array.isArray(events.commands)) {
-          console.log(chalk.red('[DEBUG] ❌ No commands found in malvin.js'));
-          await malvin.sendMessage(from, { 
-            text: `❌ No commands configured. Please check malvin.js file.\n\nTrying test command...` 
-          }, { quoted: mek });
-          
-          await malvin.sendMessage(from, { 
-            text: `🤖 Bot is working!\n📱 Your: ${sender}\n👑 Owner: ${isRealOwner ? 'YES' : 'NO'}\n🔒 Mode: ${config.MODE || 'public'}\n💬 Send "${prefix}ping" to test` 
-          }, { quoted: mek });
-          return;
-        }
+        let cmd = events.commands.find(c => c.pattern === command || (c.alias && c.alias.includes(command)));
         
-        console.log(chalk.green(`[DEBUG] 📚 Found ${events.commands.length} commands`));
-        
-        // Find the command
-        let cmd = null;
-        for (const c of events.commands) {
-          if (c.pattern === command) {
-            cmd = c;
-            break;
-          }
-          if (c.alias && Array.isArray(c.alias) && c.alias.includes(command)) {
-            cmd = c;
-            break;
-          }
-        }
-        
-        if (!cmd) {
-          console.log(chalk.red(`[DEBUG] ❌ Command "${command}" not found`));
-          await malvin.sendMessage(from, { 
-            text: `❌ Command "${command}" not found. Type ${prefix}menu for available commands.` 
-          }, { quoted: mek });
-          return;
-        }
-        
-        console.log(chalk.green(`[DEBUG] ✅ Found command: ${cmd.pattern || cmd.alias?.[0]}`));
-        console.log(chalk.cyan('[DEBUG] Has function?', typeof cmd.function === 'function'));
-        
-        // Send command reaction if specified
-        if (cmd.react) {
-          try {
-            const reactionResponse = await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }});
-            console.log(chalk.green('[DEBUG] Sent command reaction:', cmd.react, 'Response:', reactionResponse?.key?.id));
-          } catch (error) {
-            console.log(chalk.red('[DEBUG] Failed to send command reaction:', error.message));
-          }
-        }
-        
-        // Prepare tools object
-        const reply = (text) => {
-          console.log('[TOOLS.REPLY] Sending reply:', text.substring(0, 50) + '...');
-          return malvin.sendMessage(from, { text: text }, { quoted: mek });
-        };
-        
+        if (!cmd) return;
+        if (cmd.react) await malvin.sendMessage(from, { react: { text: cmd.react, key: mek.key }});
+
         const tools = {
-          from,
-          quoted: mek,
-          body,
-          isCmd,
-          command,
-          args,
-          q,
-          text: body,
-          prefix: prefix,
-          isGroup,
-          sender,
-          senderNumber: sender.split('@')[0],
-          botNumber: malvin.user.id.split(':')[0],
-          pushname: mek.pushName || 'User',
-          isMe: mek.key.fromMe,
-          isOwner: isRealOwner,
-          reply
+          from, quoted: mek, body, isCmd, command, args, q, text: body, prefix,
+          isGroup, sender, senderNumber: sender.split('@')[0],
+          botNumber: malvin.user.id.split(':')[0], pushname: mek.pushName || 'User',
+          isMe: mek.key.fromMe, isOwner: isRealOwner,
+          reply: (text) => malvin.sendMessage(from, { text: text }, { quoted: mek })
         };
         
-        // Execute the command
-        console.log(chalk.green('[DEBUG] 🚀 Executing command function...'));
-        try {
-          await cmd.function(malvin, mek, m, tools);
-          console.log(chalk.green(`[DEBUG] ✅ Command "${command}" executed successfully`));
-          
-        } catch (moduleError) {
-          console.error(chalk.red('[DEBUG] ❌ COMMAND EXECUTION ERROR:'), moduleError.message);
-          console.error(chalk.red('[DEBUG] Stack:'), moduleError.stack);
-          
-          // Send error message
-          try {
-            await malvin.sendMessage(from, {
-              text: `❌ Error executing command "${command}":\n${moduleError.message}\n\nPlease check console for details.`
-            }, { quoted: mek });
-          } catch (sendError) {
-            console.error(chalk.red('[DEBUG] Failed to send error message:', sendError.message));
-          }
-        }
-        
-      } catch (moduleError) {
-        console.error(chalk.red('[DEBUG] ❌ COMMAND LOADING ERROR:'), moduleError.message);
-        console.error(chalk.red('[DEBUG] Stack:'), moduleError.stack);
+        await cmd.function(malvin, mek, m, tools);
+      } catch (err) {
+        console.error(chalk.red('[DEBUG] Command Error:'), err);
       }
       
     } catch (error) {
-      console.error(chalk.red('[DEBUG] ❌ FATAL ERROR IN MESSAGE HANDLER:'), error.message);
-      console.error(chalk.red('[DEBUG] Stack:'), error.stack);
+      console.error(chalk.red('[DEBUG] FATAL Error:'), error);
     }
   });
 }
 
-// Express routes
 app.use(express.static(path.join(__dirname, "lib")));
-app.get("/", (req, res) => { 
-  res.redirect("/marisel.html"); 
-});
+app.get("/", (req, res) => { res.redirect("/marisel.html"); });
+app.listen(port, () => { console.log(chalk.cyan(`\nBot is live on port ${port}`)); });
 
-app.listen(port, () => {
-  console.log(chalk.cyan(`\n╭──[ hello user ]─\n│🤗 hi your bot is live \n╰──────────────`));
-});
+setTimeout(() => { connectToWA(); }, 4000);
 
-setTimeout(() => { 
-  connectToWA(); 
-}, 4000);
-
-// Export functions for malvin.js to use
-module.exports = {
-  checkOwnerStatus,
-  addOwner,
-  removeOwner,
-  resetSession
-};
+module.exports = { checkOwnerStatus, addOwner, removeOwner, resetSession };
