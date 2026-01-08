@@ -86,10 +86,8 @@ const { getPrefix } = require("./lib/prefix");
 const readline = require("readline");
 
 // ========== UPDATED: SIMPLE Owner Storage ==========
-// Store for dynamic owner management
 let botOwners = new Set();
 
-// Temp directory management
 const tempDir = path.join(os.tmpdir(), "cache-temp");
 if (!fsSync.existsSync(tempDir)) {
   fsSync.mkdirSync(tempDir);
@@ -110,12 +108,10 @@ const clearTempDir = () => {
 };
 setInterval(clearTempDir, 5 * 60 * 1000);
 
-// Express server (placeholder for future API routes)
 const express = require("express");
 const app = express();
 const port = process.env.PORT || 7860;
 
-// Session authentication
 let malvin;
 
 const sessionDir = path.join(__dirname, "./sessions");
@@ -214,9 +210,7 @@ async function connectWithPairing(malvin, useMobile) {
   }
 }
 
-// Helper functions - MOVED INSIDE connectToWA function
 function addHelperFunctions(malvin) {
-  // Added decodeJid to fix the crash in lib/msg.js
   malvin.decodeJid = (jid) => {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
@@ -225,7 +219,6 @@ function addHelperFunctions(malvin) {
     } else return jid;
   };
 
-  // Helper functions for malvin object
   malvin.copyNForward = async(jid, message, forceForward = false, options = {}) => {
     let vtype;
     if (options.readViewOnce) {
@@ -246,7 +239,6 @@ function addHelperFunctions(malvin) {
     return waMessage;
   };
 
-  // Fixed download function with FileType.fromBuffer
   malvin.downloadAndSaveMediaMessage = async(message, filename, attachExtension = true) => {
     let quoted = message.msg ? message.msg : message;
     let mime = (message.msg || message).mimetype || '';
@@ -342,110 +334,66 @@ function addHelperFunctions(malvin) {
   malvin.serializeM = mek => sms(malvin, mek);
 }
 
-// ========== FIXED: NORMALIZED Owner Checking Function ==========
-async function checkOwnerStatus(malvin, sender) {
+// ========== FIXED: AGGRESSIVE Owner Checking Function ==========
+async function checkOwnerStatus(malvin, sender, mek) {
   try {
-    // 1. Normalize the sender ID (removes :device suffixes)
+    // 0. If it's from me, it's definitely the owner
+    if (mek.key.fromMe) return true;
+
     const normalizedSender = jidNormalizedUser(sender);
     
-    // 2. Get the Bot/Linked Account ID and normalize it
-    const botId = jidNormalizedUser(malvin.user.id);
+    // 1. Bot's own number check
+    const botId = malvin.user?.id ? jidNormalizedUser(malvin.user.id) : null;
+    if (botId && normalizedSender === botId) return true;
     
-    // 3. Get Config Owner and normalize it
-    const configOwner = config.OWNER_NUMBER ? jidNormalizedUser(config.OWNER_NUMBER + "@s.whatsapp.net") : null;
+    // 2. Config Owner Number check
+    if (config.OWNER_NUMBER) {
+       const configOwner = jidNormalizedUser(config.OWNER_NUMBER + "@s.whatsapp.net");
+       if (normalizedSender === configOwner) return true;
+    }
 
-    // Check matches
-    const isLinkedOwner = normalizedSender === botId;
-    const isConfigOwner = configOwner && normalizedSender === configOwner;
-    const isAddedOwner = botOwners.has(normalizedSender) || botOwners.has(sender);
+    // 3. Manually added owners check
+    if (botOwners.has(normalizedSender) || botOwners.has(sender)) return true;
     
-    const isRealOwner = isLinkedOwner || isConfigOwner || isAddedOwner;
-    
-    return isRealOwner;
+    return false;
   } catch (e) {
     console.error(chalk.red('❌ Error in checkOwnerStatus:'), e.message);
     return false;
   }
 }
 
-// ========== ADD OWNER FUNCTION ==========
 async function addOwner(number) {
   try {
     const cleanNumber = number.replace('@s.whatsapp.net', '').replace('+', '');
     const fullJid = cleanNumber.includes('@') ? cleanNumber : cleanNumber + '@s.whatsapp.net';
-    
-    botOwners.add(fullJid);
     botOwners.add(jidNormalizedUser(fullJid));
-    
-    console.log(chalk.green(`✅ Added owner: ${fullJid}`));
     return true;
   } catch (e) {
-    console.error(chalk.red('❌ Error adding owner:'), e.message);
     return false;
   }
 }
 
-// ========== REMOVE OWNER FUNCTION ==========
 async function removeOwner(number) {
   try {
     const cleanNumber = number.replace('@s.whatsapp.net', '').replace('+', '');
     const fullJid = cleanNumber.includes('@') ? cleanNumber : cleanNumber + '@s.whatsapp.net';
-    
-    botOwners.delete(fullJid);
     botOwners.delete(jidNormalizedUser(fullJid));
-    
-    console.log(chalk.yellow(`🗑️ Removed owner: ${fullJid}`));
     return true;
   } catch (e) {
-    console.error(chalk.red('❌ Error removing owner:'), e.message);
     return false;
   }
 }
 
-// ========== SESSION RESET FUNCTION ==========
 async function resetSession() {
-  console.log(chalk.red('[ 🔄 ] Resetting session...'));
-  
   try {
-    // Delete all session files
     if (fsSync.existsSync(sessionDir)) {
       const files = fsSync.readdirSync(sessionDir);
-      console.log(chalk.yellow(`[ 📁 ] Found ${files.length} session files to delete`));
       for (const file of files) {
-        try {
-          fsSync.unlinkSync(path.join(sessionDir, file));
-          console.log(chalk.yellow(`[ 🗑️ ] Deleted: ${file}`));
-        } catch (err) {
-          console.error(chalk.red(`[ ❌ ] Error deleting ${file}:`), err.message);
-        }
+        fsSync.unlinkSync(path.join(sessionDir, file));
       }
-      console.log(chalk.green('[ ✅ ] All session files deleted'));
-    } else {
-      console.log(chalk.yellow('[ ⚠️ ] Session directory not found'));
-      fsSync.mkdirSync(sessionDir, { recursive: true });
-      console.log(chalk.green('[ ✅ ] Created new session directory'));
     }
-    
-    // Also delete creds.json if it exists
-    if (fsSync.existsSync(credsPath)) {
-      fsSync.unlinkSync(credsPath);
-      console.log(chalk.green('[ ✅ ] Creds file deleted'));
-    }
-    
-    // Clear bot owners
-    botOwners.clear();
-    
-    console.log(chalk.green('[ ✅ ] Session reset complete!'));
-    console.log(chalk.yellow('[ ⏳ ] Restarting connection in 3 seconds...'));
-    
-    // Restart connection
-    setTimeout(() => {
-      console.log(chalk.cyan('[ 🔄 ] Starting fresh connection...'));
-      connectToWA();
-    }, 3000);
+    process.exit(0);
   } catch (error) {
-    console.error(chalk.red('[ ❌ ] Error resetting session:'), error.message);
-    console.log(chalk.yellow('[ 🔧 ] Attempting manual restart...'));
     process.exit(1);
   }
 }
@@ -473,7 +421,6 @@ async function connectToWA() {
     getMessage: async () => ({}),
   });
 
-  // ADD HELPER FUNCTIONS HERE - AFTER malvin IS CREATED
   addHelperFunctions(malvin);
 
   if (pairingCode && !state.creds.registered) {
@@ -486,75 +433,44 @@ async function connectToWA() {
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
       if (reason === DisconnectReason.loggedOut) {
-        console.log(chalk.red("[ 🛑 ] Connection closed, please change session ID or re-authenticate"));
-        if (fsSync.existsSync(credsPath)) {
-          fsSync.unlinkSync(credsPath);
-        }
         process.exit(1);
       } else {
-        console.log(chalk.red("[ ⏳️ ] Connection lost, reconnecting..."));
         setTimeout(connectToWA, 5000);
       }
     } else if (connection === "open") {
       console.log(chalk.green("[ 🤖 ] Xguru Connected ✅"));
       
-      // CRITICAL: Log the linked device owner's phone number
       const botPhoneNumber = malvin.user?.id ? malvin.user.id.split(':')[0] : 'Unknown';
-      
-      // Add the linked device as owner automatically
       const linkedOwnerNumber = botPhoneNumber + '@s.whatsapp.net';
       await addOwner(linkedOwnerNumber);
       
-      // Also add from config if exists
       if (config.OWNER_NUMBER) {
         await addOwner(config.OWNER_NUMBER);
       }
       
-      // Load plugins
       const pluginPath = path.join(__dirname, "plugins");
-      try {
-        if (fsSync.existsSync(pluginPath)) {
-          const plugins = fsSync.readdirSync(pluginPath);
-          let loadedCount = 0;
-          let errorCount = 0;
-          
-          for (const plugin of plugins) {
-            if (path.extname(plugin).toLowerCase() === ".js") {
-              try {
-                require(path.join(pluginPath, plugin));
-                loadedCount++;
-              } catch (err) {
-                errorCount++;
-                console.error(chalk.red(`[ ❌ ] Failed to load plugin ${plugin}:`), err.message);
-              }
-            }
+      if (fsSync.existsSync(pluginPath)) {
+        const plugins = fsSync.readdirSync(pluginPath);
+        for (const plugin of plugins) {
+          if (path.extname(plugin).toLowerCase() === ".js") {
+            try { require(path.join(pluginPath, plugin)); } catch (err) {}
           }
         }
-      } catch (err) {
-        console.error(chalk.red("[ ❌ ] Error accessing plugins directory:"), err.message);
       }
 
-      // Send connection message
       try {
         await sleep(2000);
-        const jid = malvin.user.id;
         const prefix = getPrefix();
-        const currentDate = new Date();
-        const uptime = process.uptime();
-
         const upMessage = `
 ▄▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▄
 █        𝗫𝗚𝗨𝗥𝗨 𝗕𝗢𝗧 𝗢𝗡𝗟𝗜𝗡𝗘        █
 █▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀𝗻𝗙        █
 █ • 𝗣𝗿𝗲𝗳𝗶𝘅: ${prefix}
-█ • 𝗗𝗮𝘁𝗲: ${currentDate.toLocaleDateString()}
+█ • 𝗗𝗮𝘁𝗲: ${new Date().toLocaleDateString()}
 █ • 𝗠𝗼𝗱𝗲: ${config.MODE || 'public'}
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀`;
-
-        await malvin.sendMessage(jid, { text: upMessage });
-      } catch (sendError) {
-        console.error(chalk.red(`[ 🔴 ] Error sending connection notice:`), sendError.message);
-      }
+        await malvin.sendMessage(malvin.user.id, { text: upMessage });
+      } catch (e) {}
     }
 
     if (qr && !pairingCode) {
@@ -573,54 +489,35 @@ async function connectToWA() {
   });
   
   malvin.ev.on('call', async (calls) => {
-    try {
-      if (config.ANTI_CALL !== 'true') return;
-      for (const call of calls) {
-        if (call.status !== 'offer') continue;
-        const id = call.id;
-        const from = call.from;
-        await malvin.rejectCall(id, from);
-        await malvin.sendMessage(from, { text: config.REJECT_MSG || '*вυѕу ¢αℓℓ ℓαтєя*' });
-      }
-    } catch (err) {
-      console.error("Anti-call error:", err);
+    if (config.ANTI_CALL !== 'true') return;
+    for (const call of calls) {
+      if (call.status !== 'offer') continue;
+      await malvin.rejectCall(call.id, call.from);
     }
   });
 
-  // ========== ENHANCED MESSAGE HANDLER ==========
   malvin.ev.on('messages.upsert', async (messageData) => {
     try {
-      if (!messageData || !messageData.messages || messageData.messages.length === 0) return;
-      
+      if (!messageData?.messages?.[0]?.message) return;
       const mek = messageData.messages[0];
-      if (!mek || !mek.message) return;
       
-      // Fix message structure for ephemeral/viewOnce messages
       const contentType = getContentType(mek.message);
       if (contentType === 'ephemeralMessage') mek.message = mek.message.ephemeralMessage.message;
       if (mek.message.viewOnceMessageV2) mek.message = mek.message.viewOnceMessageV2.message;
       
-      // Initialize m variable with sms function
       let m = (typeof sms === 'function') ? sms(malvin, mek) : { message: mek.message };
       
-      // Extract message text
       const type = getContentType(mek.message);
       let body = '';
       if (type === 'conversation') body = mek.message.conversation;
       else if (type === 'extendedTextMessage') body = mek.message.extendedTextMessage?.text;
       else if (type === 'imageMessage') body = mek.message.imageMessage?.caption;
       else if (type === 'videoMessage') body = mek.message.videoMessage?.caption;
-      else if (type === 'documentMessage') body = mek.message.documentMessage?.caption;
-      else if (type === 'audioMessage') body = mek.message.audioMessage?.caption;
       
       if (!body) body = '';
       const prefix = getPrefix();
       const isCmd = body.startsWith(prefix);
       
-      // SKIP LOGIC: Skip own messages UNLESS it's a command
-      if (mek.key.fromMe && !isCmd) return;
-      
-      // Handle status messages
       if (mek.key && mek.key.remoteJid === 'status@broadcast') {
         if (config.AUTO_STATUS_SEEN === "true") await malvin.readMessages([mek.key]);
         return;
@@ -636,26 +533,15 @@ async function connectToWA() {
       let from = mek.key.remoteJid;
       let sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
       
-      if (mek.key.remoteJid.includes('@lid') && mek.key.remoteJidAlt) {
-        sender = mek.key.remoteJidAlt;
-        from = mek.key.remoteJidAlt;
-      }
-      
       const isGroup = from.endsWith('@g.us');
-      const isRealOwner = await checkOwnerStatus(malvin, sender);
+      // PASS mek TO OWNER CHECK
+      const isRealOwner = await checkOwnerStatus(malvin, sender, mek);
       
-      // ========== MODE LOGIC ==========
       const currentMode = config.MODE || "public";
-      
       if (currentMode === "private" && !isRealOwner) return;
-      if (currentMode === "inbox" && !isRealOwner && isGroup) return;
-      if (currentMode === "groups" && !isRealOwner && !isGroup) return;
       
-      // Load and execute command
       try {
         const events = require('./malvin');
-        if (!events || !events.commands) return;
-        
         let cmd = events.commands.find(c => c.pattern === command || (c.alias && c.alias.includes(command)));
         
         if (!cmd) return;
@@ -670,19 +556,15 @@ async function connectToWA() {
         };
         
         await cmd.function(malvin, mek, m, tools);
-      } catch (err) {
-        console.error(chalk.red('[DEBUG] Command Error:'), err);
-      }
+      } catch (err) {}
       
-    } catch (error) {
-      console.error(chalk.red('[DEBUG] FATAL Error:'), error);
-    }
+    } catch (error) {}
   });
 }
 
 app.use(express.static(path.join(__dirname, "lib")));
 app.get("/", (req, res) => { res.redirect("/marisel.html"); });
-app.listen(port, () => { console.log(chalk.cyan(`\nBot is live on port ${port}`)); });
+app.listen(port, () => {});
 
 setTimeout(() => { connectToWA(); }, 4000);
 
