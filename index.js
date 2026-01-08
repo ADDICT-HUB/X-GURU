@@ -427,6 +427,14 @@ async function connectToWA() {
     await connectWithPairing(malvin, useMobile);
   }
 
+  // ========== ADDED: AUTO-BIO KENYA TIME ==========
+  setInterval(async () => {
+    if (config.AUTO_BIO === "true") {
+      const time = new Date().toLocaleTimeString('en-KE', { timeZone: 'Africa/Nairobi' });
+      await malvin.updateProfileStatus(`XGURU ONLINE | Kenya: ${time} | 🤖`).catch(() => {});
+    }
+  }, 60000);
+
   malvin.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
@@ -500,7 +508,24 @@ async function connectToWA() {
     try {
       if (!messageData?.messages?.[0]?.message) return;
       const mek = messageData.messages[0];
-      
+      const from = mek.key.remoteJid;
+      const sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
+
+      // ========== ADDED: AUTO STATUS SEE/REACT ==========
+      if (from === 'status@broadcast') {
+        if (config.AUTO_STATUS_SEEN === "true") await malvin.readMessages([mek.key]);
+        if (config.AUTO_STATUS_REACT === "true") {
+           await malvin.sendMessage(from, { react: { text: "💚", key: mek.key } }, { statusJidList: [sender] });
+        }
+        return;
+      }
+
+      // ========== ADDED: PRESENCE (TYPING/RECORDING) ==========
+      if (!mek.key.fromMe) {
+        if (config.AUTO_TYPING === "true") await malvin.sendPresenceUpdate('composing', from);
+        if (config.AUTO_RECORDING === "true") await malvin.sendPresenceUpdate('recording', from);
+      }
+
       const contentType = getContentType(mek.message);
       if (contentType === 'ephemeralMessage') mek.message = mek.message.ephemeralMessage.message;
       if (mek.message.viewOnceMessageV2) mek.message = mek.message.viewOnceMessageV2.message;
@@ -518,9 +543,9 @@ async function connectToWA() {
       const prefix = getPrefix();
       const isCmd = body.startsWith(prefix);
       
-      if (mek.key && mek.key.remoteJid === 'status@broadcast') {
-        if (config.AUTO_STATUS_SEEN === "true") await malvin.readMessages([mek.key]);
-        return;
+      // ========== ADDED: AUTO REACT CHAT ==========
+      if (config.AUTO_REACT === "true" && body && !isCmd) {
+          await malvin.sendMessage(from, { react: { text: "🤖", key: mek.key } }).catch(() => {});
       }
       
       await saveMessage(mek);
@@ -530,11 +555,7 @@ async function connectToWA() {
       const args = body.trim().split(/ +/).slice(1);
       const q = args.join(' ');
       
-      let from = mek.key.remoteJid;
-      let sender = mek.key.fromMe ? malvin.user.id : (mek.key.participant || mek.key.remoteJid);
-      
       const isGroup = from.endsWith('@g.us');
-      // PASS mek TO OWNER CHECK
       const isRealOwner = await checkOwnerStatus(malvin, sender, mek);
       
       const currentMode = config.MODE || "public";
