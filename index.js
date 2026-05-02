@@ -1,4 +1,11 @@
 // [2025-12-27] Use my note in every script.
+
+// Polyfill File global for Node.js 18 compatibility (required by undici)
+if (!global.File) {
+  const { File } = require('buffer');
+  global.File = File;
+}
+
 // Anti-crash handler
 process.on("uncaughtException", (err) => {
   console.error("[❗] Uncaught Exception:", err.stack || err);
